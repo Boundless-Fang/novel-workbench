@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>小说工作台</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell" aria-label="小说工作台">
+      <aside class="sidebar">
+        <div class="brand"><span class="brand-mark"></span><span>小说工作台</span></div>
+        <button class="new-project" type="button" id="newProject">＋ 新建小说</button>
+        <nav class="projects" aria-label="小说项目">
+          <div class="side-label">当前小说</div>
+          <button class="project active" type="button"><span class="project-dot"></span><span>原创-雾港来信</span><span class="count">03</span></button>
+          <div class="chapter-box">
+          <button class="chapter-picker" type="button" id="chapterPicker">第 3 章：旧码头 <span>⌄</span></button>
+          <div class="chapter-menu hidden" id="chapterMenu">
+            <button type="button" data-chapter="第 1 章：雨夜来客">第 1 章：雨夜来客</button>
+            <button type="button" data-chapter="第 2 章：失物招领">第 2 章：失物招领</button>
+            <button type="button" data-chapter="第 3 章：旧码头">第 3 章：旧码头</button>
+            <button type="button" class="create-chapter" id="createChapter">＋ 新建章节</button>
+          </div>
+          </div>
+          <div class="side-label other-projects">其他小说</div>
+          <button class="project" type="button"><span class="project-dot"></span><span>同人-长夜余烬</span></button>
+          <button class="project" type="button"><span class="project-dot"></span><span>原创-春水渡</span></button>
+        </nav>
+        <div class="asset-panels">
+          <div class="side-label">已完成</div>
+          <div class="asset-item"><button class="asset-toggle" type="button" data-asset="强制设定锚点.md" data-group="提示词">强制设定锚点 <span>⌄</span></button><div class="asset-actions hidden"><button data-asset-action="view">查看</button><button data-asset-action="modify">修改</button><button data-asset-action="create">新建</button><button data-asset-action="delete">删除</button></div></div>
+          <div class="asset-item"><button class="asset-toggle" type="button" data-asset="配置.md" data-group="提示词">配置 <span>⌄</span></button><div class="asset-actions hidden"><button data-asset-action="view">查看</button><button data-asset-action="modify">修改</button><button data-asset-action="create">新建</button><button data-asset-action="delete">删除</button></div></div>
+          <div class="asset-item"><button class="asset-toggle" type="button" data-asset="台词.md" data-group="提示词">台词 <span>⌄</span></button><div class="asset-actions hidden"><button data-asset-action="view">查看</button><button data-asset-action="modify">修改</button><button data-asset-action="create">新建</button><button data-asset-action="delete">删除</button></div></div>
+          <div class="asset-item"><button class="asset-toggle" type="button" data-asset="第 3 章.txt" data-group="正文">正文 <span>⌄</span></button><div class="asset-actions hidden"><button data-asset-action="view">查看</button><button data-asset-action="modify">修改</button><button data-asset-action="create">新建</button><button data-asset-action="delete">删除</button></div></div>
+          <div class="asset-item"><button class="asset-toggle" type="button" data-asset="校验报告.md" data-group="提示词">校验报告 <span>⌄</span></button><div class="asset-actions hidden"><button data-asset-action="view">查看</button><button data-asset-action="modify">修改</button><button data-asset-action="create">新建</button><button data-asset-action="delete">删除</button></div></div>
+        </div>
+        <button class="settings" type="button" id="settings">设置 <span>›</span></button>
+      </aside>
+
+      <section class="conversation">
+        <header class="chat-header">
+          <div class="chat-title"><span class="eyebrow">原创-雾港来信 /</span><div class="title-row"><h1>第 3 章：旧码头</h1><button class="top-rows-toggle" id="topRowsToggle" type="button" aria-label="展开顶部资产"></button><div class="header-menu-wrap"><button class="header-more" id="headerMore" type="button" aria-label="章节操作">•••</button><div class="header-menu hidden" id="headerMenu"><button type="button" id="deleteChapter">删除当前章节</button><button type="button" id="deleteProject">删除当前小说</button></div></div></div></div>
+          <div class="stage-context"><div class="header-assets"><div class="header-asset"><button class="header-asset-toggle" type="button" data-asset="世界观.md" data-group="知识库">世界观 <span>⌄</span></button><div class="header-asset-actions hidden"><button data-header-asset-action="view">查看</button><button data-header-asset-action="modify">修改</button><button data-header-asset-action="create">新建</button><button data-header-asset-action="delete">删除</button></div></div><div class="header-asset"><button class="header-asset-toggle" type="button" data-asset="角色卡-沈栖迟.md" data-group="知识库">角色卡 <span>⌄</span></button><div class="header-asset-actions hidden"><button data-header-asset-action="view">查看</button><button data-header-asset-action="modify">修改</button><button data-header-asset-action="create">新建</button><button data-header-asset-action="delete">删除</button></div></div><div class="header-asset"><button class="header-asset-toggle" type="button" data-asset="关系卡-沈栖迟-陆闻洲.md" data-group="知识库">关系卡 <span>⌄</span></button><div class="header-asset-actions hidden"><button data-header-asset-action="view">查看</button><button data-header-asset-action="modify">修改</button><button data-header-asset-action="create">新建</button><button data-header-asset-action="delete">删除</button></div></div></div><div class="workflow-panel"><div class="workflow"><span class="status-dot"></span>当前阶段：台词</div><button class="next-step" type="button" id="nextStep">下一步：生成正文 <span>›</span></button></div></div>
+        </header>
+        <div class="messages" id="messages">
+          <article class="message assistant-message"><div class="avatar">AI</div><div><p>已读取第 3 章的强制设定锚点、角色卡和上一章结尾。你可以让我生成台词、修改正文，或查看已有文件。</p></div></article>
+          <article class="message user-message"><div><p>根据本章锚点，生成台词。</p></div></article>
+          <article class="message assistant-message completion"><div class="avatar">AI</div><div><p>台词已生成，可继续进入正文阶段。</p><button class="generated-file" type="button" data-file="台词.md"><span class="done-icon">✓</span> 已生成 <strong>台词.md</strong><span class="open-arrow">打开 ›</span></button><div class="message-actions"><button type="button" data-action="undo">撤回</button><button type="button" data-action="retry">重试</button><button type="button" data-action="next">下一步</button></div></div></article>
+        </div>
+        <form class="composer" id="composer">
+          <div class="generation-context" id="generationContext" data-file="台词.md">本次生成：<strong id="generationTarget">台词</strong></div>
+          <textarea id="prompt" rows="1" placeholder="描述你要创作或修改的内容…"></textarea>
+          <div class="composer-actions"><span>对话内容仅在确认后写入文件</span><button type="submit">发送 ↵</button></div>
+        </form>
+      </section>
+
+      <div class="workspace-resizer" id="workspaceResizer" title="拖动调整右侧宽度"></div>
+      <aside class="workspace">
+        <header class="workspace-header"><span>文件</span><button type="button" class="search-button" aria-label="搜索文件">⌕</button></header>
+        <nav class="file-groups" id="fileGroups" aria-label="文件分类">
+          <button type="button" class="active" data-group="正文">正文</button>
+          <button type="button" data-group="提示词">提示词</button>
+          <button type="button" data-group="知识库">知识库</button>
+          <button type="button" data-group="剧情">剧情</button>
+          <button type="button" data-group="提取">提取</button>
+        </nav>
+        <div class="file-list" id="fileList"></div>
+        <div class="file-resizer" id="fileResizer" title="拖动调整文件列表高度"></div>
+        <div class="document-area">
+          <div class="document-tabs" id="documentTabs"></div>
+          <div class="document-toolbar"><span id="documentPath"></span><div class="editor-actions"><button id="deleteCurrentFile" type="button">删除</button><button id="modifyInChat" type="button">修改</button><button class="hidden" id="undoEdit" type="button">撤回</button><button class="hidden" id="cancelEdit" type="button">取消</button><button class="edit-button" id="editButton" type="button">编辑</button></div></div>
+          <textarea class="document-content" id="documentContent" readonly aria-label="文件内容"></textarea>
+          <div class="document-footer" id="documentFooter">只读模式</div>
+        </div>
+      </aside>
+    </main>
+    <div class="search-panel hidden" id="searchPanel" role="dialog" aria-modal="true" aria-label="查找文件">
+      <div class="search-dialog"><div class="search-head"><strong>查找文件</strong><button type="button" id="closeSearch" aria-label="关闭查找">×</button></div><form class="search-form" id="searchForm"><input id="searchInput" placeholder="输入文件名或关键词" autofocus /><button type="submit">查找</button></form><div class="search-results" id="searchResults"><span>输入关键词后点击“查找”</span></div></div>
+    </div>
+    <div class="modal hidden" id="projectModal" role="dialog" aria-modal="true" aria-label="新建小说"><form class="modal-card project-card" id="projectForm"><div class="modal-title"><strong>新建小说</strong><button type="button" data-close-modal="projectModal">×</button></div><label class="project-name-label">小说名称<input required id="projectName" placeholder="例如：雾港来信" /></label><div class="project-controls"><label><input type="radio" name="projectType" value="原创" checked /><span>原创</span></label><label><input type="radio" name="projectType" value="同人" /><span>同人</span></label><button type="button" data-close-modal="projectModal">取消</button><button class="primary" type="submit">创建小说</button></div></form></div>
+    <div class="modal hidden" id="chapterModal" role="dialog" aria-modal="true" aria-label="新建章节"><form class="modal-card" id="chapterForm"><div class="modal-title"><strong>新建章节</strong><button type="button" data-close-modal="chapterModal">×</button></div><label>章节名称<input required id="chapterName" placeholder="例如：第 4 章：未命名" /></label><p class="form-note">将同时创建该章的正文和提示词文件。</p><div class="modal-actions"><button type="button" data-close-modal="chapterModal">取消</button><button class="primary" type="submit">创建章节</button></div></form></div>
+    <div class="modal hidden" id="deleteModal" role="dialog" aria-modal="true" aria-label="确认删除"><form class="modal-card" id="deleteForm"><div class="modal-title"><strong>确认删除</strong><button type="button" data-close-modal="deleteModal">×</button></div><p class="form-note" id="deleteMessage"></p><div class="modal-actions"><button type="button" data-close-modal="deleteModal">取消</button><button class="primary danger" type="submit">删除</button></div></form></div>
+    <div class="toast hidden" id="toast"></div>
+    <script src="./app.js"></script>
+  </body>
+</html>
