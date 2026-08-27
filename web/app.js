@@ -133,178 +133,40 @@ stageContext.before(topRows);
 document.querySelector('#topRowsToggle').addEventListener('click', () => { const open = topRows.classList.toggle('hidden'); document.querySelector('#topRowsToggle').classList.toggle('expanded', !open); document.querySelector('#topRowsToggle').setAttribute('aria-label', open ? '展开顶部资产' : '收起顶部资产'); });
 completedAssets.addEventListener('click', event => { const toggle = event.target.closest('.header-asset-toggle'); if (toggle) { toggle.parentElement.querySelector('.header-asset-actions').classList.toggle('hidden'); return; } const action = event.target.closest('[data-header-asset-action]'); if (!action) return; const item = action.closest('.header-asset'); const asset = item.querySelector('.header-asset-toggle'); const name = asset.dataset.asset; const group = asset.dataset.group; if (action.dataset.headerAssetAction === 'view') { openFile(name); document.querySelectorAll('[data-group]').forEach(button => button.classList.toggle('active', button.dataset.group === group)); renderFiles(group); } if (action.dataset.headerAssetAction === 'modify') { openGenerationPrompt(name, group, '修改'); showToast(`本次生成：${name}`); } if (action.dataset.headerAssetAction === 'create') { openGenerationPrompt(name, group, '新建'); showToast(`本次生成：${name}`); } if (action.dataset.headerAssetAction === 'delete') { deleteTarget = 'asset'; document.querySelector('#deleteMessage').textContent = `将删除文件 ${name}。此操作无法在原型中恢复。`; document.querySelector('#deleteModal').classList.remove('hidden'); } });
 
-/* 新项目流程：在保留原型全部交互的前提下，为新建项目提供独立的前端状态。 */
+/* 新建项目专用：不替换原有交互；只有新项目进入初始化状态。 */
 (() => {
-  const emptyProjectFiles = () => ({ "正文": [], "提示词": [], "知识库": [], "剧情": [], "提取": [] });
-  const newProjectStore = new Map();
-  let activeNewProject = null;
-  let legacyProjectSaved = false;
-  const legacyProject = {
-    name: document.querySelector('.current-project-row .project span:nth-child(2)').textContent,
-    files: Object.fromEntries(Object.entries(files).map(([group, list]) => [group, [...list]])),
-    fileState: { ...fileState }
-  };
-  const initBase = [
-    { name: '知识库', next: '下一步：生成剧情资产', message: '知识库已生成：世界观、语言风格、角色卡与关系卡。', outputs: [['知识库', '世界观.md'], ['知识库', '语言风格.md'], ['知识库', '角色卡.md'], ['知识库', '关系卡.md']] },
-    { name: '剧情资产', next: '完成初始化', message: '剧情书、剧情卷 N 与信息账本已生成。', outputs: [['剧情', '剧情书.md'], ['剧情', '第 1 卷.md'], ['知识库', '信息账本.md']] },
-    { name: '确认初始化', next: '完成初始化', message: '初始化资产已齐全。完成后才可以新建章节。', outputs: [] }
+  const groups = ["正文", "提示词", "知识库", "剧情", "提取"];
+  const blankFiles = () => Object.fromEntries(groups.map(group => [group, []]));
+  const projects = new Map();
+  let activeId = null;
+  const legacy = { name: document.querySelector('.current-project-row .project span:nth-child(2)').textContent, files: Object.fromEntries(Object.entries(files).map(([key, value]) => [key, [...value]])), content: { ...fileState } };
+  let legacyButtonAdded = false;
+  const initCommon = [
+    { name:'知识库', next:'下一步：创建剧情资产', output:[['知识库','世界观.md'],['知识库','语言风格.md'],['知识库','角色卡.md'],['知识库','关系卡.md']] },
+    { name:'剧情资产', next:'完成初始化', output:[['剧情','剧情书.md'],['剧情','第 1 卷.md'],['知识库','信息账本.md']] },
+    { name:'确认初始化', next:'完成初始化', output:[] }
   ];
-  const initFan = [{ name: '同人提取', next: '下一步：生成知识库', message: '已生成原文统计、原文风格、高频词、正向词库与原文检索索引。', outputs: [['提取', '原文统计.md'], ['提取', '原文风格.md'], ['提取', '高频词.md'], ['提取', '正向词库.md'], ['提取', '原文检索索引.md']] }, ...initBase];
+  const initFan = [{ name:'同人提取', next:'下一步：生成知识库', output:[['提取','原文统计.md'],['提取','原文风格.md'],['提取','高频词.md'],['提取','正向词库.md'],['提取','原文检索索引.md']] }, ...initCommon];
   const chapterFlow = [
-    { name: '设定', next: '下一步：生成配置', message: '本章强制设定锚点已生成。', file: '强制设定锚点.md', group: '提示词' },
-    { name: '配置', next: '下一步：生成台词', message: '本章配置已生成。', file: '配置.md', group: '提示词' },
-    { name: '台词', next: '下一步：生成提示词', message: '本章台词已生成。', file: '台词.md', group: '提示词' },
-    { name: '提示词', next: '下一步：生成正文', message: '最终提示词快照已生成，正文将只使用该快照。', file: '最终提示词快照.md', group: '提示词' },
-    { name: '正文', next: '下一步：校验与验收', message: '正文已生成，进入校验与验收。', group: '正文' },
-    { name: '校验与验收', next: '生成校验报告', message: '校验报告已生成。请查看后选择撤回、重试、通过或上一步。', file: '校验报告.md', group: '提示词' }
+    { name:'设定', next:'下一步：生成配置', file:'强制设定锚点.md', group:'提示词' }, { name:'配置', next:'下一步：生成台词', file:'配置.md', group:'提示词' }, { name:'台词', next:'下一步：生成提示词', file:'台词.md', group:'提示词' }, { name:'提示词', next:'下一步：生成正文', file:'最终提示词快照.md', group:'提示词' }, { name:'正文', next:'下一步：校验与验收', group:'正文' }, { name:'校验与验收', next:'生成校验报告', file:'校验报告.md', group:'提示词' }
   ];
-  const managed = () => activeNewProject && newProjectStore.get(activeNewProject);
-  const currentInitStages = project => project.type === '同人' ? initFan : initBase;
-  const uniquePush = (list, item) => { if (!list.includes(item)) list.push(item); };
-  function syncProjectFiles(project) {
-    Object.entries(files).forEach(([group, list]) => list.splice(0, list.length, ...project.files[group]));
-    Object.keys(fileState).forEach(key => delete fileState[key]);
-    Object.assign(fileState, project.fileState);
-    openFiles = []; currentFile = '';
-    content.value = ''; path.textContent = '当前文件 / 未选择'; renderTabs(); renderFiles(project.activeGroup || '知识库');
-  }
-  function activeChapter(project) { return project.chapters.find(chapter => chapter.id === project.chapterId) || null; }
-  function setHeader(project) {
-    let title = '初始化', label = '', next = '';
-    if (!project.initialized) { const stage = currentInitStages(project)[project.initIndex]; label = stage.name; next = stage.next; }
-    else if (!project.chapterId) { title = '准备新章节'; label = '初始化已完成'; next = '新建第 1 章'; }
-    else {
-      const chapter = activeChapter(project); title = chapter.name;
-      if (chapter.approved) { label = '已通过'; next = `新建第 ${project.chapters.length + 1} 章`; }
-      else { const stage = chapterFlow[chapter.stageIndex]; label = stage.name; next = chapter.evaluated ? '上一步' : stage.next; }
-    }
-    document.querySelector('.eyebrow').textContent = `${project.name} /`;
-    document.querySelector('.chat-title h1').textContent = title;
-    document.querySelector('.workflow').innerHTML = `<span class="status-dot"></span>当前阶段：${label}`;
-    document.querySelector('#nextStep').innerHTML = `${next} <span>›</span>`;
-  }
-  function addOtherProjectButton(project) {
-    const exists = [...document.querySelectorAll('.project[data-new-project]')].some(button => button.dataset.newProject === project.id);
-    if (exists) return;
-    const button = document.createElement('button');
-    button.type = 'button'; button.className = 'project'; button.dataset.newProject = project.id;
-    button.innerHTML = `<span class="project-dot"></span><span>${project.name}</span><span class="count">00</span>`;
-    document.querySelector('.other-projects').after(button);
-    button.addEventListener('click', () => selectNewProject(project.id));
-  }
-  function restoreLegacyProject() {
-    activeNewProject = null;
-    Object.entries(files).forEach(([group, list]) => list.splice(0, list.length, ...legacyProject.files[group]));
-    Object.keys(fileState).forEach(key => delete fileState[key]); Object.assign(fileState, legacyProject.fileState);
-    document.querySelector('.current-project-row .project span:nth-child(2)').textContent = legacyProject.name;
-    document.querySelector('.current-project-row .project .count').textContent = '03';
-    document.querySelector('.eyebrow').textContent = `${legacyProject.name} /`;
-    document.querySelector('.chat-title h1').textContent = '第 3 章：旧码头';
-    document.querySelector('#chapterPicker').childNodes[0].nodeValue = '第 3 章：旧码头 ';
-    document.querySelector('#chapterMenu').innerHTML = '<button type="button" data-chapter="第 1 章：雨夜来客">第 1 章：雨夜来客</button><button type="button" data-chapter="第 2 章：失物招领">第 2 章：失物招领</button><button type="button" data-chapter="第 3 章：旧码头">第 3 章：旧码头</button><button type="button" class="create-chapter" id="createChapter">＋ 新建章节</button>';
-    phaseIndex = 0; updatePhaseHeader(); renderFiles('正文'); openFile('第 3 章.txt');
-  }
-  function addLegacyProjectButton() {
-    if (legacyProjectSaved) return; legacyProjectSaved = true;
-    const button = document.createElement('button'); button.type = 'button'; button.className = 'project'; button.dataset.legacyProject = 'true';
-    button.innerHTML = `<span class="project-dot"></span><span>${legacyProject.name}</span><span class="count">03</span>`;
-    document.querySelector('.other-projects').after(button); button.addEventListener('click', restoreLegacyProject);
-  }
-  function selectNewProject(id) {
-    const nextProject = newProjectStore.get(id); if (!nextProject) return;
-    const previous = managed(); if (previous && previous.id !== id) addOtherProjectButton(previous);
-    activeNewProject = id;
-    const currentButton = document.querySelector('.current-project-row .project');
-    currentButton.querySelector('span:nth-child(2)').textContent = nextProject.name;
-    currentButton.querySelector('.count').textContent = String(nextProject.chapters.length).padStart(2, '0');
-    document.querySelectorAll('.project[data-new-project]').forEach(button => button.classList.toggle('active', button.dataset.newProject === id));
-    syncProjectFiles(nextProject); setHeader(nextProject); renderManagedChapterMenu(nextProject);
-  }
-  function renderManagedChapterMenu(project) {
-    const picker = document.querySelector('#chapterPicker');
-    const menu = document.querySelector('#chapterMenu');
-    picker.childNodes[0].nodeValue = `${project.initialized ? (project.chapterId ? activeChapter(project).name : '准备新章节') : '初始化'} `;
-    menu.innerHTML = project.initialized ? `${project.chapters.map(chapter => `<button type="button" data-managed-chapter="${chapter.id}">${chapter.name}</button>`).join('')}<button type="button" class="create-chapter" data-managed-create>＋ 新建章节</button>` : '<button type="button" data-managed-init>初始化</button><button type="button" class="create-chapter" data-managed-create>＋ 新建章节</button>';
-  }
-  function appendManagedResult(stage, validation = false) {
-    const file = stage.file || (stage.group === '正文' ? `${activeChapter(managed()).name}.txt` : stage.outputs?.[0]?.[1]);
-    const group = stage.group || stage.outputs?.[0]?.[0];
-    const actions = validation ? '<button type="button" data-managed-action="undo">撤回</button><button type="button" data-managed-action="retry">重试</button><button type="button" class="confirmed" data-managed-action="pass">通过</button><button type="button" data-managed-action="previous">上一步</button>' : '<button type="button" data-managed-action="next">下一步</button>';
-    messages.insertAdjacentHTML('beforeend', `<article class="message assistant-message completion"><div class="avatar">AI</div><div><p>${stage.message}</p>${file ? `<button class="generated-file" type="button" data-file="${file}" data-managed-group="${group}"><span class="done-icon">✓</span> 已生成 <strong>${file}</strong><span class="open-arrow">打开 ›</span></button>` : ''}<div class="message-actions">${actions}</div></div></article>`);
-    messages.scrollTop = messages.scrollHeight;
-  }
-  function completeInitialization(project) {
-    const stages = currentInitStages(project); const stage = stages[project.initIndex];
-    stage.outputs.forEach(([group, file]) => { uniquePush(project.files[group], file); project.fileState[file] = `# ${file.replace('.md', '')}\n\n初始化阶段已生成，等待编辑或补充。`; });
-    appendManagedResult(stage); project.initIndex += 1;
-    if (project.initIndex >= stages.length) { project.initialized = true; project.activeGroup = '知识库'; appendManagedResult({ message: '初始化已完成。现在可以新建章节。' }); }
-    syncProjectFiles(project); setHeader(project); renderManagedChapterMenu(project);
-  }
-  function completeChapterStep(project) {
-    const chapter = activeChapter(project); const stage = chapterFlow[chapter.stageIndex];
-    const file = stage.file || `${chapter.name}.txt`; uniquePush(project.files[stage.group], file);
-    project.fileState[file] = `# ${file.replace(/\.(md|txt)$/, '')}\n\n此产物由“${stage.name}”步骤生成。`;
-    appendManagedResult({ ...stage, file }, chapter.stageIndex === chapterFlow.length - 1);
-    if (chapter.stageIndex < chapterFlow.length - 1) chapter.stageIndex += 1; else chapter.evaluated = true;
-    syncProjectFiles(project); setHeader(project); renderManagedChapterMenu(project);
-  }
-  function openManagedChapterModal(project) {
-    if (!project.initialized) return showToast('请先完成初始化，再新建章节');
-    const number = project.chapters.length + 1;
-    const label = `第${number}章`;
-    document.querySelector('#chapterModal .modal-title strong').textContent = `新建${label}`;
-    document.querySelector('#chapterModal .form-note').textContent = `将创建${label}，并从“设定”开始生成。`;
-    document.querySelector('#chapterName').placeholder = `例如：${label}：未命名`;
-    document.querySelector('#chapterModal').classList.remove('hidden'); document.querySelector('#chapterName').focus();
-  }
-  function createManagedChapter(project, name) {
-    const number = project.chapters.length + 1;
-    const label = `第${number}章`;
-    const fullName = /^第[一二三四五六七八九十\d]+章[：:]/.test(name) ? name : `${label}：${name}`;
-    const chapter = { id: crypto.randomUUID(), name: fullName, stageIndex: 0, evaluated: false, approved: false };
-    project.chapters.push(chapter); project.chapterId = chapter.id; project.activeGroup = '提示词';
-    messages.innerHTML = `<article class="message assistant-message"><div class="avatar">AI</div><div><p>已创建${name}。请从本章设定开始。</p></div></article>`;
-    syncProjectFiles(project); setHeader(project); renderManagedChapterMenu(project);
-  }
-  function managedNext(project) {
-    if (!project.initialized) return completeInitialization(project);
-    if (!project.chapterId || activeChapter(project).approved) return openManagedChapterModal(project);
-    const chapter = activeChapter(project); if (chapter.evaluated) { chapter.stageIndex = Math.max(0, chapter.stageIndex - 1); chapter.evaluated = false; setHeader(project); return; }
-    completeChapterStep(project);
-  }
-  projectForm.addEventListener('submit', event => {
-    const name = document.querySelector('#projectName').value.trim(); const type = document.querySelector('input[name="projectType"]:checked').value; const source = document.querySelector('#sourceFile');
-    if (!name || (type === '同人' && !source.files.length)) return;
-    event.preventDefault(); event.stopImmediatePropagation();
-    const previous = managed(); if (previous) addOtherProjectButton(previous); else addLegacyProjectButton();
-    const project = { id: crypto.randomUUID(), name: `${type}-${name}`, type, initialized: false, initIndex: 0, files: emptyProjectFiles(), fileState: {}, chapters: [], chapterId: null, activeGroup: type === '同人' ? '提取' : '知识库' };
-    newProjectStore.set(project.id, project); activeNewProject = project.id;
-    document.querySelector('.current-project-row .project span:nth-child(2)').textContent = project.name;
-    document.querySelector('.current-project-row .project .count').textContent = '00';
-    document.querySelector('#projectModal').classList.add('hidden'); event.target.reset();
-    messages.innerHTML = `<article class="message assistant-message"><div class="avatar">AI</div><div><p>已创建${project.name}。请先完成初始化，再新建章节。</p></div></article>`;
-    syncProjectFiles(project); setHeader(project); renderManagedChapterMenu(project);
-  }, true);
-  document.querySelector('#nextStep').addEventListener('click', event => { const project = managed(); if (!project) return; event.preventDefault(); event.stopImmediatePropagation(); managedNext(project); }, true);
-  document.querySelector('#chapterMenu').addEventListener('click', event => {
-    const project = managed(); const button = event.target.closest('button'); if (!project || !button) return;
-    if (button.dataset.managedCreate !== undefined) { event.preventDefault(); event.stopImmediatePropagation(); openManagedChapterModal(project); }
-    if (button.dataset.managedChapter) { event.preventDefault(); event.stopImmediatePropagation(); project.chapterId = button.dataset.managedChapter; syncProjectFiles(project); setHeader(project); renderManagedChapterMenu(project); }
-    if (button.dataset.managedInit !== undefined) { event.preventDefault(); event.stopImmediatePropagation(); showToast('请完成初始化流程'); }
-  }, true);
-  document.querySelector('#chapterForm').addEventListener('submit', event => {
-    const project = managed(); if (!project) return; const name = document.querySelector('#chapterName').value.trim(); if (!name) return;
-    event.preventDefault(); event.stopImmediatePropagation(); document.querySelector('#chapterModal').classList.add('hidden'); event.target.reset(); createManagedChapter(project, name);
-  }, true);
-  messages.addEventListener('click', event => {
-    const project = managed(); const action = event.target.closest('[data-managed-action]'); const file = event.target.closest('[data-managed-group]'); if (!project || (!action && !file)) return;
-    event.preventDefault(); event.stopImmediatePropagation();
-    if (file) { project.activeGroup = file.dataset.managedGroup; syncProjectFiles(project); openFile(file.dataset.file); return; }
-    const chapter = activeChapter(project); const type = action.dataset.managedAction;
-    if (type === 'undo') { action.closest('.completion').remove(); showToast('已撤回本次生成'); }
-    if (type === 'retry') { action.closest('.completion').querySelector('p').textContent = '已重新生成，可打开文件查看新版本。'; }
-    if (type === 'next') managedNext(project);
-    if (type === 'previous') { chapter.stageIndex = Math.max(0, chapter.stageIndex - 1); chapter.evaluated = false; setHeader(project); }
-    if (type === 'pass') { chapter.approved = true; appendManagedResult({ message: '验收已通过：已更新剧情卷、世界观、语言风格、角色卡、关系卡与信息账本。' }); setHeader(project); renderManagedChapterMenu(project); }
-  }, true);
+  const active = () => activeId ? projects.get(activeId) : null;
+  const stages = project => project.type === '同人' ? initFan : initCommon;
+  const chapter = project => project.chapters.find(item => item.id === project.chapterId);
+  const add = (project, group, name) => { if (!project.files[group].includes(name)) project.files[group].push(name); };
+  function sync(project, group = project.group) { Object.entries(files).forEach(([key, value]) => value.splice(0, value.length, ...project.files[key])); Object.keys(fileState).forEach(key => delete fileState[key]); Object.assign(fileState, project.content); openFiles=[]; currentFile=''; content.value=''; path.textContent='当前文件 / 未选择'; renderTabs(); renderFiles(group); }
+  function header(project) { let title='初始化', stage, next; if (!project.initialized) { stage=stages(project)[project.initIndex]; next=stage.next; } else if (!project.chapterId) { title='准备新章节'; stage={name:'初始化已完成'}; next='新建第1章'; } else { const item=chapter(project); title=item.name; stage=item.approved ? {name:'已通过'} : chapterFlow[item.index]; next=item.approved ? `新建第${project.chapters.length + 1}章` : item.checked ? '上一步' : stage.next; } document.querySelector('.eyebrow').textContent=`${project.name} /`; document.querySelector('.chat-title h1').textContent=title; document.querySelector('.workflow').innerHTML=`<span class="status-dot"></span>当前阶段：${stage.name}`; document.querySelector('#nextStep').innerHTML=`${next} <span>›</span>`; }
+  function menu(project) { const picker=document.querySelector('#chapterPicker'), list=document.querySelector('#chapterMenu'); const label=!project.initialized?'初始化':project.chapterId?chapter(project).name:'准备新章节'; picker.childNodes[0].nodeValue=`${label} `; list.innerHTML=!project.initialized?'<button type="button" data-new-init>初始化</button><button type="button" class="create-chapter" data-new-chapter>＋ 新建章节</button>':`${project.chapters.map(item=>`<button type="button" data-new-chapter-id="${item.id}">${item.name}</button>`).join('')}<button type="button" class="create-chapter" data-new-chapter>＋ 新建章节</button>`; }
+  function card(text, file, group, validation=false) { const actions=validation?'<button type="button" data-new-action="undo">撤回</button><button type="button" data-new-action="retry">重试</button><button type="button" class="confirmed" data-new-action="pass">通过</button><button type="button" data-new-action="previous">上一步</button>':'<button type="button" data-new-action="undo">撤回</button><button type="button" data-new-action="retry">重试</button><button type="button" data-new-action="next">下一步</button>'; messages.insertAdjacentHTML('beforeend',`<article class="message assistant-message completion"><div class="avatar">AI</div><div><p>${text}</p>${file?`<button class="generated-file" type="button" data-new-file="${file}" data-new-group="${group}"><span class="done-icon">✓</span> 已生成 <strong>${file}</strong><span class="open-arrow">打开 ›</span></button>`:''}<div class="message-actions">${actions}</div></div></article>`); messages.scrollTop=messages.scrollHeight; }
+  function otherButton(name, count, handler) { const button=document.createElement('button'); button.type='button'; button.className='project'; button.innerHTML=`<span class="project-dot"></span><span>${name}</span><span class="count">${String(count).padStart(2,'0')}</span>`; document.querySelector('.other-projects').after(button); button.addEventListener('click',handler); }
+  function restoreLegacy() { activeId=null; Object.entries(files).forEach(([key,value])=>value.splice(0,value.length,...legacy.files[key])); Object.keys(fileState).forEach(key=>delete fileState[key]); Object.assign(fileState,legacy.content); document.querySelector('.current-project-row .project span:nth-child(2)').textContent=legacy.name; document.querySelector('.current-project-row .project .count').textContent='03'; document.querySelector('.eyebrow').textContent=`${legacy.name} /`; document.querySelector('.chat-title h1').textContent='第 3 章：旧码头'; document.querySelector('#chapterPicker').childNodes[0].nodeValue='第 3 章：旧码头 '; document.querySelector('#chapterMenu').innerHTML='<button type="button" data-chapter="第 1 章：雨夜来客">第 1 章：雨夜来客</button><button type="button" data-chapter="第 2 章：失物招领">第 2 章：失物招领</button><button type="button" data-chapter="第 3 章：旧码头">第 3 章：旧码头</button><button type="button" class="create-chapter" id="createChapter">＋ 新建章节</button>'; phaseIndex=0; updatePhaseHeader(); renderFiles('正文'); openFile('第 3 章.txt'); }
+  function activate(id) { const project=projects.get(id); if (!project) return; activeId=id; document.querySelector('.current-project-row .project span:nth-child(2)').textContent=project.name; document.querySelector('.current-project-row .project .count').textContent=String(project.chapters.length).padStart(2,'0'); sync(project); header(project); menu(project); }
+  function runInitialization(project) { const stage=stages(project)[project.initIndex]; stage.output.forEach(([group,name])=>{add(project,group,name);project.content[name]=`# ${name.replace('.md','')}\n\n初始化阶段已生成。`;}); card(`${stage.name}已完成。`,stage.output[0]?.[1],stage.output[0]?.[0]); project.initIndex+=1; if(project.initIndex>=stages(project).length){project.initialized=true;card('初始化已完成。现在可以新建章节。');} sync(project);header(project);menu(project); }
+  function runChapter(project) { const item=chapter(project), stage=chapterFlow[item.index], file=stage.file||`${item.name}.txt`; add(project,stage.group,file);project.content[file]=`# ${file.replace(/\.(md|txt)$/,'')}\n\n此产物由“${stage.name}”步骤生成。`;card(`${stage.name}已生成。`,file,stage.group,item.index===chapterFlow.length-1);if(item.index<chapterFlow.length-1)item.index+=1;else item.checked=true;sync(project,stage.group);header(project);menu(project); }
+  function openChapter(project) { if(!project.initialized)return showToast('请先完成初始化，再新建章节');const n=project.chapters.length+1;document.querySelector('#chapterModal .modal-title strong').textContent=`新建第${n}章`;document.querySelector('#chapterModal .form-note').textContent=`将创建第${n}章，并从“设定”开始生成。`;document.querySelector('#chapterName').placeholder=`例如：第${n}章：退婚`;document.querySelector('#chapterModal').classList.remove('hidden');document.querySelector('#chapterName').focus(); }
+  projectForm.addEventListener('submit',event=>{const name=document.querySelector('#projectName').value.trim(),type=document.querySelector('input[name="projectType"]:checked').value,source=document.querySelector('#sourceFile');if(!name||(type==='同人'&&!source.files.length))return;event.preventDefault();event.stopImmediatePropagation();if(!legacyButtonAdded){legacyButtonAdded=true;otherButton(legacy.name,3,restoreLegacy);}const project={id:crypto.randomUUID(),name:`${type}-${name}`,type,initialized:false,initIndex:0,files:blankFiles(),content:{},chapters:[],chapterId:null,group:type==='同人'?'提取':'知识库'};projects.set(project.id,project);document.querySelector('#projectModal').classList.add('hidden');event.target.reset();messages.innerHTML=`<article class="message assistant-message"><div class="avatar">AI</div><div><p>已创建${project.name}。请先完成初始化，再新建章节。</p></div></article>`;activate(project.id);},true);
+  document.querySelector('#nextStep').addEventListener('click',event=>{const project=active();if(!project)return;event.preventDefault();event.stopImmediatePropagation();if(!project.initialized)return runInitialization(project);if(!project.chapterId||chapter(project).approved)return openChapter(project);const item=chapter(project);if(item.checked){item.index=Math.max(0,item.index-1);item.checked=false;header(project);return;}runChapter(project);},true);
+  document.querySelector('#chapterMenu').addEventListener('click',event=>{const project=active(),button=event.target.closest('button');if(!project||!button)return;if(button.dataset.newChapter!==undefined){event.preventDefault();event.stopImmediatePropagation();openChapter(project);}if(button.dataset.newChapterId){event.preventDefault();event.stopImmediatePropagation();project.chapterId=button.dataset.newChapterId;sync(project);header(project);menu(project);}if(button.dataset.newInit!==undefined){event.preventDefault();event.stopImmediatePropagation();showToast('请完成初始化流程');}},true);
+  document.querySelector('#chapterForm').addEventListener('submit',event=>{const project=active(),name=document.querySelector('#chapterName').value.trim();if(!project||!name)return;event.preventDefault();event.stopImmediatePropagation();const n=project.chapters.length+1;const fullName=/^第\d+章[：:]/.test(name)?name:`第${n}章：${name}`;const item={id:crypto.randomUUID(),name:fullName,index:0,checked:false,approved:false};project.chapters.push(item);project.chapterId=item.id;document.querySelector('#chapterModal').classList.add('hidden');event.target.reset();messages.innerHTML=`<article class="message assistant-message"><div class="avatar">AI</div><div><p>已创建${fullName}。请从本章设定开始。</p></div></article>`;sync(project,'提示词');header(project);menu(project);},true);
+  messages.addEventListener('click',event=>{const project=active(),action=event.target.closest('[data-new-action]'),file=event.target.closest('[data-new-file]');if(!project||(!action&&!file))return;event.preventDefault();event.stopImmediatePropagation();if(file){sync(project,file.dataset.newGroup);openFile(file.dataset.newFile);return;}const item=chapter(project),type=action.dataset.newAction;if(type==='undo'){action.closest('.completion').remove();showToast('已撤回本次生成');}if(type==='retry'){action.closest('.completion').querySelector('p').textContent='已重新生成，可打开文件查看新版本。';}if(type==='next')document.querySelector('#nextStep').click();if(type==='previous'){item.index=Math.max(0,item.index-1);item.checked=false;header(project);}if(type==='pass'){item.approved=true;card('验收已通过：已更新剧情卷、世界观、语言风格、角色卡、关系卡与信息账本。');header(project);menu(project);}},true);
 })();
