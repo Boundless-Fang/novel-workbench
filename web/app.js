@@ -251,7 +251,7 @@ completedAssets.addEventListener('click', event => { const toggle = event.target
   function openManagedChapterModal(project) {
     if (!project.initialized) return showToast('请先完成初始化，再新建章节');
     const number = project.chapters.length + 1;
-    const label = number === 1 ? '第一章' : `第 ${number} 章`;
+    const label = `第${number}章`;
     document.querySelector('#chapterModal .modal-title strong').textContent = `新建${label}`;
     document.querySelector('#chapterModal .form-note').textContent = `将创建${label}，并从“设定”开始生成。`;
     document.querySelector('#chapterName').placeholder = `例如：${label}：未命名`;
@@ -259,7 +259,7 @@ completedAssets.addEventListener('click', event => { const toggle = event.target
   }
   function createManagedChapter(project, name) {
     const number = project.chapters.length + 1;
-    const label = number === 1 ? '第一章' : `第 ${number} 章`;
+    const label = `第${number}章`;
     const fullName = /^第[一二三四五六七八九十\d]+章[：:]/.test(name) ? name : `${label}：${name}`;
     const chapter = { id: crypto.randomUUID(), name: fullName, stageIndex: 0, evaluated: false, approved: false };
     project.chapters.push(chapter); project.chapterId = chapter.id; project.activeGroup = '提示词';
