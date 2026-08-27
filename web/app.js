@@ -138,6 +138,12 @@ completedAssets.addEventListener('click', event => { const toggle = event.target
   const emptyProjectFiles = () => ({ "正文": [], "提示词": [], "知识库": [], "剧情": [], "提取": [] });
   const newProjectStore = new Map();
   let activeNewProject = null;
+  let legacyProjectSaved = false;
+  const legacyProject = {
+    name: document.querySelector('.current-project-row .project span:nth-child(2)').textContent,
+    files: Object.fromEntries(Object.entries(files).map(([group, list]) => [group, [...list]])),
+    fileState: { ...fileState }
+  };
   const initBase = [
     { name: '知识库', next: '下一步：生成剧情资产', message: '知识库已生成：世界观、语言风格、角色卡与关系卡。', outputs: [['知识库', '世界观.md'], ['知识库', '语言风格.md'], ['知识库', '角色卡.md'], ['知识库', '关系卡.md']] },
     { name: '剧情资产', next: '完成初始化', message: '剧情书、剧情卷 N 与信息账本已生成。', outputs: [['剧情', '剧情书.md'], ['剧情', '第 1 卷.md'], ['知识库', '信息账本.md']] },
@@ -186,6 +192,24 @@ completedAssets.addEventListener('click', event => { const toggle = event.target
     document.querySelector('.other-projects').after(button);
     button.addEventListener('click', () => selectNewProject(project.id));
   }
+  function restoreLegacyProject() {
+    activeNewProject = null;
+    Object.entries(files).forEach(([group, list]) => list.splice(0, list.length, ...legacyProject.files[group]));
+    Object.keys(fileState).forEach(key => delete fileState[key]); Object.assign(fileState, legacyProject.fileState);
+    document.querySelector('.current-project-row .project span:nth-child(2)').textContent = legacyProject.name;
+    document.querySelector('.current-project-row .project .count').textContent = '03';
+    document.querySelector('.eyebrow').textContent = `${legacyProject.name} /`;
+    document.querySelector('.chat-title h1').textContent = '第 3 章：旧码头';
+    document.querySelector('#chapterPicker').childNodes[0].nodeValue = '第 3 章：旧码头 ';
+    document.querySelector('#chapterMenu').innerHTML = '<button type="button" data-chapter="第 1 章：雨夜来客">第 1 章：雨夜来客</button><button type="button" data-chapter="第 2 章：失物招领">第 2 章：失物招领</button><button type="button" data-chapter="第 3 章：旧码头">第 3 章：旧码头</button><button type="button" class="create-chapter" id="createChapter">＋ 新建章节</button>';
+    phaseIndex = 0; updatePhaseHeader(); renderFiles('正文'); openFile('第 3 章.txt');
+  }
+  function addLegacyProjectButton() {
+    if (legacyProjectSaved) return; legacyProjectSaved = true;
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'project'; button.dataset.legacyProject = 'true';
+    button.innerHTML = `<span class="project-dot"></span><span>${legacyProject.name}</span><span class="count">03</span>`;
+    document.querySelector('.other-projects').after(button); button.addEventListener('click', restoreLegacyProject);
+  }
   function selectNewProject(id) {
     const nextProject = newProjectStore.get(id); if (!nextProject) return;
     const previous = managed(); if (previous && previous.id !== id) addOtherProjectButton(previous);
@@ -227,13 +251,17 @@ completedAssets.addEventListener('click', event => { const toggle = event.target
   function openManagedChapterModal(project) {
     if (!project.initialized) return showToast('请先完成初始化，再新建章节');
     const number = project.chapters.length + 1;
-    document.querySelector('#chapterModal .modal-title strong').textContent = `新建第 ${number} 章`;
-    document.querySelector('#chapterModal .form-note').textContent = `将创建第 ${number} 章，并从“设定”开始生成。`;
-    document.querySelector('#chapterName').placeholder = `例如：第 ${number} 章：未命名`;
+    const label = number === 1 ? '第一章' : `第 ${number} 章`;
+    document.querySelector('#chapterModal .modal-title strong').textContent = `新建${label}`;
+    document.querySelector('#chapterModal .form-note').textContent = `将创建${label}，并从“设定”开始生成。`;
+    document.querySelector('#chapterName').placeholder = `例如：${label}：未命名`;
     document.querySelector('#chapterModal').classList.remove('hidden'); document.querySelector('#chapterName').focus();
   }
   function createManagedChapter(project, name) {
-    const chapter = { id: crypto.randomUUID(), name, stageIndex: 0, evaluated: false, approved: false };
+    const number = project.chapters.length + 1;
+    const label = number === 1 ? '第一章' : `第 ${number} 章`;
+    const fullName = /^第[一二三四五六七八九十\d]+章[：:]/.test(name) ? name : `${label}：${name}`;
+    const chapter = { id: crypto.randomUUID(), name: fullName, stageIndex: 0, evaluated: false, approved: false };
     project.chapters.push(chapter); project.chapterId = chapter.id; project.activeGroup = '提示词';
     messages.innerHTML = `<article class="message assistant-message"><div class="avatar">AI</div><div><p>已创建${name}。请从本章设定开始。</p></div></article>`;
     syncProjectFiles(project); setHeader(project); renderManagedChapterMenu(project);
@@ -248,7 +276,7 @@ completedAssets.addEventListener('click', event => { const toggle = event.target
     const name = document.querySelector('#projectName').value.trim(); const type = document.querySelector('input[name="projectType"]:checked').value; const source = document.querySelector('#sourceFile');
     if (!name || (type === '同人' && !source.files.length)) return;
     event.preventDefault(); event.stopImmediatePropagation();
-    const previous = managed(); if (previous) addOtherProjectButton(previous);
+    const previous = managed(); if (previous) addOtherProjectButton(previous); else addLegacyProjectButton();
     const project = { id: crypto.randomUUID(), name: `${type}-${name}`, type, initialized: false, initIndex: 0, files: emptyProjectFiles(), fileState: {}, chapters: [], chapterId: null, activeGroup: type === '同人' ? '提取' : '知识库' };
     newProjectStore.set(project.id, project); activeNewProject = project.id;
     document.querySelector('.current-project-row .project span:nth-child(2)').textContent = project.name;
