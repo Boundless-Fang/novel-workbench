@@ -180,3 +180,111 @@ completedAssets.addEventListener('click', event => { const toggle = event.target
   document.querySelector('#chapterForm').addEventListener('submit',event=>{const project=active(),name=document.querySelector('#chapterName').value.trim();if(!project||!name)return;event.preventDefault();event.stopImmediatePropagation();const n=project.chapters.length+1;const fullName=/^第\d+章[：:]/.test(name)?name:`第${n}章：${name}`;const item={id:crypto.randomUUID(),name:fullName,index:0,checked:false,approved:false};project.chapters.push(item);project.chapterId=item.id;document.querySelector('#chapterModal').classList.add('hidden');event.target.reset();messages.innerHTML=`<article class="message assistant-message"><div class="avatar">AI</div><div><p>已创建${fullName}。请从本章设定开始。</p></div></article>`;sync(project,'提示词');header(project);menu(project);},true);
   messages.addEventListener('click',event=>{const project=active(),action=event.target.closest('[data-new-action]'),file=event.target.closest('[data-new-file]');if(!project||(!action&&!file))return;event.preventDefault();event.stopImmediatePropagation();if(file){sync(project,file.dataset.newGroup);openFile(file.dataset.newFile);return;}const item=chapter(project),type=action.dataset.newAction;if(type==='undo'){action.closest('.completion').remove();showToast('已撤回本次生成');}if(type==='retry'){action.closest('.completion').querySelector('p').textContent='已重新生成，可打开文件查看新版本。';}if(type==='next')document.querySelector('#nextStep').click();if(type==='previous'){item.index=Math.max(0,item.index-1);item.checked=false;header(project);}if(type==='pass'){item.approved=true;card('验收已通过：已更新剧情卷、世界观、语言风格、角色卡、关系卡与信息账本。');header(project);menu(project);}},true);
 })();
+
+/* 结构化资产编辑：与原有 Markdown 编辑并存，保存时编译为可读文件。 */
+(() => {
+  const modal = document.querySelector('#structuredModal');
+  const form = document.querySelector('#structuredForm');
+  const fields = document.querySelector('#structuredFields');
+  const preview = document.querySelector('#structuredPreview');
+  const title = document.querySelector('#structuredTitle');
+  const drafts = new Map();
+  let target = '';
+
+  const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char]);
+  const simpleSchemas = {
+    world: { title:'世界观', fields:[['小说类型','例如：东方玄幻、悬疑'],['世界基础','时代、地域与社会规则','textarea'],['力量体系','等级、能力与限制','textarea'],['势力与组织','主要势力、立场与冲突','textarea'],['资源设定','货币、物资、稀缺资源','textarea']] },
+    character: { title:'角色卡', fields:[['姓名',''],['身份','职业、阵营、社会位置'],['重要性','主角 / 重要配角 / 配角 / 路人','select',['主角','重要配角','配角','路人']],['性格','关键词之间用顿号分隔','textarea'],['价值观与目标','角色想要什么、底线是什么','textarea'],['外貌气质','外貌、身材、服饰偏好','textarea'],['语言习惯','用词、口头禅、语速、音色','textarea'],['能力与限制','能力、境界、弱点','textarea'],['经历时间轴','关键经历按时间填写','textarea']] },
+    relation: { title:'关系卡', fields:[['角色 A',''],['角色 B',''],['彼此称呼',''],['关系类型','亲属、盟友、敌对等'],['情感状态','信任、疏离、暧昧等','textarea'],['共同经历','塑造关系的关键事件','textarea'],['当前态度','本章开始时的关系状态','textarea']] },
+    anchor: { title:'强制设定锚点', fields:[['出场角色与情绪','例如：沈栖迟（戒备）、陆闻洲（克制）','textarea'],['核心事件','本章必须发生的事件','textarea'],['信息边界','可以揭示与禁止揭示的信息','textarea'],['伏笔','要埋下或回应的线索','textarea'],['钩子','章节末尾的悬念或推动','textarea']] },
+    dialogue: { title:'台词', fields:[['角色名',''],['心理或动作','例如：压低声音、指尖收紧'],['台词内容','', 'textarea'],['对话目的','推进的信息、冲突或情绪','textarea']] }
+  };
+  const configGroups = [
+    ['叙事视角',['第一人称','第三人称'],'single'],
+    ['叙事结构',['顺叙','倒叙','插叙'],'multi'],
+    ['结构模板',['铺垫蓄势','冲突递进','悬念收束'],'single'],
+    ['事件评级',['主线','支线','闲笔'],'single'],
+    ['场景组织',['单场景','多场景'],'single'],
+    ['信息安排',['背景设定','场景氛围','前置剧情','人物出场','信息揭示','身份揭示','回忆/前情','冲突','伏笔','悬念','回应/揭示','对话引入','场景切换'],'multi'],
+    ['人物变化',['性格对比','心理状态','关系变化','结尾状态'],'multi'],
+    ['事件要素',['误会','危机','反转','和解'],'multi'],
+    ['表达方式',['叙述','描写','抒情','议论','说明'],'multi'],
+    ['行为触发',['对话/声响触发','情绪触发','对比','延宕','因果链'],'multi']
+  ];
+
+  function kind(name) {
+    if (name === '世界观.md') return 'world';
+    if (name.includes('角色卡')) return 'character';
+    if (name.includes('关系卡')) return 'relation';
+    if (name === '强制设定锚点.md') return 'anchor';
+    if (name === '配置.md') return 'config';
+    if (name === '台词.md') return 'dialogue';
+    return null;
+  }
+  function defaultDraft(type) {
+    if (type === 'config') return Object.fromEntries(configGroups.map(([label,, mode]) => [label, mode === 'multi' ? [] : '']));
+    return Object.fromEntries(simpleSchemas[type].fields.map(([label]) => [label, '']));
+  }
+  function inputMarkup(label, hint, type, options, value) {
+    if (type === 'textarea') return `<label>${label}<textarea name="${escape(label)}" placeholder="${escape(hint)}">${escape(value)}</textarea></label>`;
+    if (type === 'select') return `<label>${label}<select name="${escape(label)}">${options.map(option => `<option ${option === value ? 'selected' : ''}>${escape(option)}</option>`).join('')}</select></label>`;
+    return `<label>${label}<input name="${escape(label)}" value="${escape(value)}" placeholder="${escape(hint)}" /></label>`;
+  }
+  function compileSimple(type, data) {
+    const schema = simpleSchemas[type];
+    if (type === 'dialogue') return `# ${schema.title}\n\n${data['角色名'] || '角色'}：${data['心理或动作'] ? `［${data['心理或动作']}］` : ''}“${data['台词内容'] || ''}”\n\n## 对话目的\n${data['对话目的'] || ''}`;
+    return `# ${schema.title}\n\n${schema.fields.map(([label]) => `## ${label}\n${data[label] || ''}`).join('\n\n')}`;
+  }
+  function compileConfig(data) {
+    return `# 本章配置\n\n${configGroups.map(([label,, mode]) => `## ${label}\n${mode === 'multi' ? (data[label] || []).join('、') : (data[label] || '')}`).join('\n\n')}`;
+  }
+  function refreshPreview() {
+    const type = kind(target);
+    const data = drafts.get(target);
+    preview.value = type === 'config' ? compileConfig(data) : compileSimple(type, data);
+  }
+  function render() {
+    const type = kind(target);
+    const data = drafts.get(target);
+    if (type === 'config') {
+      title.textContent = '配置｜选择式编辑';
+      fields.innerHTML = configGroups.map(([label, options, mode]) => `<div class="choice-group"><span>${label}${mode === 'multi' ? '（可多选）' : '（单选）'}</span><div class="choice-list">${options.map(option => `<button type="button" class="choice ${(mode === 'multi' ? data[label].includes(option) : data[label] === option) ? 'selected' : ''}" data-config-group="${escape(label)}" data-config-option="${escape(option)}" data-config-mode="${mode}">${option}</button>`).join('')}</div></div>`).join('');
+    } else {
+      const schema = simpleSchemas[type];
+      title.textContent = `${schema.title}｜结构化编辑`;
+      fields.innerHTML = `<div class="structured-grid">${schema.fields.map(([label, hint, fieldType, options]) => inputMarkup(label, hint, fieldType, options, data[label])).join('')}</div>`;
+    }
+    refreshPreview();
+  }
+  document.querySelector('#structuredEdit').addEventListener('click', () => {
+    const type = kind(currentFile);
+    if (!type) return showToast('当前文件暂不支持结构化编辑');
+    target = currentFile;
+    if (!drafts.has(target)) drafts.set(target, defaultDraft(type));
+    render();
+    modal.classList.remove('hidden');
+  });
+  fields.addEventListener('input', event => {
+    const input = event.target.closest('[name]');
+    if (!input) return;
+    drafts.get(target)[input.name] = input.value;
+    refreshPreview();
+  });
+  fields.addEventListener('click', event => {
+    const choice = event.target.closest('[data-config-group]');
+    if (!choice) return;
+    const data = drafts.get(target), group = choice.dataset.configGroup, option = choice.dataset.configOption;
+    if (choice.dataset.configMode === 'single') data[group] = option;
+    else data[group] = data[group].includes(option) ? data[group].filter(item => item !== option) : [...data[group], option];
+    render();
+  });
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    const type = kind(target);
+    fileState[target] = type === 'config' ? compileConfig(drafts.get(target)) : compileSimple(type, drafts.get(target));
+    if (currentFile === target) { content.value = fileState[target]; footer.textContent = '已保存结构化内容'; }
+    modal.classList.add('hidden');
+    showToast(`${target} 已保存`);
+  });
+  document.querySelectorAll('[data-close-structured]').forEach(button => button.addEventListener('click', () => modal.classList.add('hidden')));
+})();
