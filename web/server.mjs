@@ -1,11 +1,17 @@
-import { createReadStream, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, createReadStream, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { extname, join, normalize, relative, resolve } from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { basename, extname, join, normalize, relative, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 
 const webRoot = process.cwd();
 // 项目根随工作区移动：web/ 的上两级就是当前工作区，而不是写死盘符。
 const workspaceRoot = resolve(webRoot, '..', '..');
 const projectsRoot = join(workspaceRoot, '小说项目');
+const inkflowRoot = join(workspaceRoot, 'Inkflow');
+const scanScript = join(inkflowRoot, 'scripts', 'bench', 'scan-corpus.ts');
+const runFile = promisify(execFile);
 const types = { '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
 
 function send(response, status, body) {
@@ -34,7 +40,7 @@ function projectPath(project, file = '') {
 }
 function ensureProject(projectName) {
   const base = projectPath(projectName);
-  [base, join(base, '提取'), join(base, '知识库', '角色卡'), join(base, '知识库', '关系卡'), join(base, '剧情', '剧情卷'), join(base, '提示词'), join(base, '正文'), join(base, '原著')].forEach(folder => mkdirSync(folder, { recursive:true }));
+  [base, join(base, '提取'), join(base, '知识库', '角色卡'), join(base, '知识库', '关系卡'), join(base, '剧情', '剧情卷'), join(base, '提示词'), join(base, '正文'), join(base, '草稿'), join(base, '评分'), join(base, '原著')].forEach(folder => mkdirSync(folder, { recursive:true }));
   return base;
 }
 
@@ -64,6 +70,19 @@ createServer(async (request, response) => {
       mkdirSync(join(destination, '..'), { recursive:true });
       writeFileSync(destination, String(body.content ?? ''), 'utf8');
       return send(response, 200, { path:body.path });
+    }
+    if (url.pathname === '/api/score' && request.method === 'POST') {
+      const body = await readBody(request);
+      const file = safeSegment(body.file, '正文文件');
+      const proseFile = projectPath(body.project, `正文/${file}`);
+      if (!existsSync(scanScript)) throw new Error('未找到 Inkflow 评分脚本');
+      if (!existsSync(proseFile)) throw new Error('当前章节正文不存在');
+      const scoreInput = mkdtempSync(join(tmpdir(), 'novel-score-'));
+      try {
+        copyFileSync(proseFile, join(scoreInput, basename(proseFile)));
+        const { stdout, stderr } = await runFile(process.execPath, ['--import', 'tsx', scanScript, scoreInput], { cwd:inkflowRoot, timeout:60_000, windowsHide:true });
+        return send(response, 200, { report:stdout || stderr || '评分脚本没有返回结果' });
+      } finally { rmSync(scoreInput, { recursive:true, force:true }); }
     }
   } catch (error) {
     return send(response, 400, { error:error.message || '请求失败' });
