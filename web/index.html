@@ -51,7 +51,7 @@
         <form class="composer" id="composer">
           <div class="generation-context" id="generationContext" data-file="台词.md">本次生成：<strong id="generationTarget">台词</strong></div>
           <textarea id="prompt" rows="1" placeholder="描述你要创作或修改的内容…"></textarea>
-          <div class="composer-actions"><span>对话内容仅在确认后写入文件</span><button type="submit">发送 ↵</button></div>
+          <div class="composer-actions"><div class="write-mode" id="writeMode"><button class="write-mode-button" id="writeModeButton" type="button" aria-haspopup="listbox" aria-expanded="false">模式：<strong id="writeModeLabel">标准</strong><span>⌄</span></button><div class="write-mode-menu hidden" id="writeModeMenu" role="listbox" aria-label="写入模式"><button type="button" role="option" data-write-mode="手动">手动</button><button type="button" role="option" data-write-mode="标准" aria-selected="true">标准</button><button type="button" role="option" data-write-mode="自动">自动</button></div></div><button type="submit">发送 ↵</button></div>
         </form>
       </section>
 
