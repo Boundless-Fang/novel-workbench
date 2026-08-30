@@ -1,0 +1,42 @@
+# 本地小说项目数据（包含正文、对话记录、用户资料等，不应上传）
+小说项目/
+
+# 本地配置：包含 API Key / 模型密钥，不应上传
+工作流脚本/工作台设置.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Node
+node_modules/
+web/node_modules/
+工作流脚本/文风评分/node_modules/
+工作流脚本/文风评分/dist/
+*.tsbuildinfo
+
+# 同人提取运行时生成目录
+工作流脚本/同人提取/novel_projects/
+工作流脚本/同人提取/text_style_imitation/
+工作流脚本/同人提取/reference_novels/
+工作流脚本/同人提取/dictionaries/
+工作流脚本/同人提取/text_testing_code/
+工作流脚本/同人提取/huggingface/
+
+# 文风评分内置小说语料（可能包含受版权保护的文本，不应公开上传）
+工作流脚本/文风评分/scripts/bench/data/
+
+# 环境变量与本地密钥
+.env
+.env.*
+*.local
+
+# 日志与临时文件
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+desktop.ini

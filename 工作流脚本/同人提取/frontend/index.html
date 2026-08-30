@@ -1,0 +1,1438 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>StyleSync-Novel</title>
+    <link href="https://cdn.staticfile.org/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.staticfile.org/vue/3.3.4/vue.global.min.js"></script>
+    <script src="https://cdn.staticfile.org/marked/5.1.0/marked.min.js"></script>
+    <script src="https://cdn.staticfile.org/dompurify/3.0.6/purify.min.js"></script>
+    <link href="https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="bg-gray-100 h-screen overflow-hidden text-gray-800">
+
+<div id="app" class="h-full w-full">
+
+    <div class="flex h-full w-full">
+        
+        <div class="w-72 bg-white border-r border-gray-200 flex flex-col shadow-lg z-10 flex-shrink-0">
+            <div class="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-microchip text-blue-600 text-xl"></i>
+                    <h1 class="font-bold text-lg text-gray-800">全局控制台</h1>
+                    <span class="text-[10px] text-gray-400 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded" title="前端版本号，刷新后若小于 v4.2 说明还在用旧缓存">v4.2</span>
+                </div>
+                <button @click="showSettingsDrawer = true" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-colors shadow-sm" title="布局与显示 / API 设置">
+                    <i class="fa-solid fa-gear"></i> 设置
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 space-y-6 flex flex-col">
+                <div class="border-t border-gray-100 pt-4 flex flex-col min-h-[140px] flex-1">
+                    <div class="flex items-center justify-between gap-2 mb-3 shrink-0">
+                        <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                            <i class="fa-solid fa-list-check mr-1"></i> 任务队列
+                        </div>
+                        <div class="flex gap-2 relative">
+                            <div class="relative">
+                                <button @click="toggleTaskActionMenu('cancel')" class="px-2 py-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded hover:bg-amber-100 transition-colors">
+                                    终止 <i class="fa-solid fa-chevron-down ml-1"></i>
+                                </button>
+                                <div v-if="openTaskActionMenu === 'cancel'" class="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded shadow-lg z-20 overflow-hidden">
+                                    <button @click="cancelLatestTask" class="w-full text-left px-3 py-2 text-xs hover:bg-amber-50">终止最近</button>
+                                    <button @click="cancelAllTasks" class="w-full text-left px-3 py-2 text-xs hover:bg-amber-50">终止全部</button>
+                                    <button @click="cancelSelectedTasks" class="w-full text-left px-3 py-2 text-xs hover:bg-amber-50">终止勾选</button>
+                                </div>
+                            </div>
+                            <div class="relative">
+                                <button @click="toggleTaskActionMenu('clear')" class="px-2 py-1 text-xs text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100 transition-colors">
+                                    清除 <i class="fa-solid fa-chevron-down ml-1"></i>
+                                </button>
+                                <div v-if="openTaskActionMenu === 'clear'" class="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded shadow-lg z-20 overflow-hidden">
+                                    <button @click="clearOldestTasks" class="w-full text-left px-3 py-2 text-xs hover:bg-red-50">清除最远</button>
+                                    <button @click="clearAllTaskRecords" class="w-full text-left px-3 py-2 text-xs hover:bg-red-50">清除全部</button>
+                                    <button @click="clearSelectedTaskRecords" class="w-full text-left px-3 py-2 text-xs hover:bg-red-50">清除勾选</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <h3 class="hidden"><i class="fa-solid fa-list-check mr-1"></i> 任务队列</h3>
+                    <div v-if="taskList.length === 0" class="text-xs text-gray-400 text-center py-2 shrink-0">暂无任务记录</div>
+                    <div class="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1">
+                        <div v-for="task in visibleTasks" :key="task.id" 
+                            :class="['text-xs p-2 rounded border shadow-sm transition-colors', 
+                                task.status === 'success' ? 'bg-green-50 border-green-200' : 
+                                (task.status === 'cancelled' ? 'bg-amber-50 border-amber-200' :
+                                (['failed', 'error'].includes(task.status) ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'))
+                            ]">
+                            <div class="flex justify-between items-center mb-1">
+                                <div class="flex items-center gap-2 w-1/2 min-w-0">
+                                    <input type="checkbox" :checked="isTaskSelected(task.id)" @change="toggleTaskSelection(task.id)" class="accent-blue-600 w-3.5 h-3.5 cursor-pointer">
+                                    <span class="font-bold truncate" :title="task.name">{{ task.name }}</span>
+                                </div>
+                                <span :class="{
+                                    'text-orange-500 font-bold': task.status === 'queued',
+                                    'text-blue-600 font-bold': task.status === 'running' || task.status === 'pending',
+                                    'text-green-600 font-bold': task.status === 'success',
+                                    'text-amber-600 font-bold': task.status === 'cancelled',
+                                    'text-red-600 font-bold': ['failed', 'error'].includes(task.status)
+                                }">
+                                    <span v-if="task.status === 'queued'">
+                                        <i class="fa-solid fa-hourglass-half"></i> 排队中
+                                    </span>
+                                    <span v-else-if="task.status === 'running' || task.status === 'pending'">
+                                        <i class="fas fa-spinner fa-spin"></i> 执行中
+                                    </span>
+                                    <span v-else-if="task.status === 'success'">
+                                        <i class="fas fa-check"></i> 已完成
+                                    </span>
+                                    <span v-else-if="task.status === 'cancelled'">
+                                        <i class="fa-solid fa-ban"></i> 已终止
+                                    </span>
+                                    <span v-else>
+                                        <i class="fas fa-times"></i> 失败
+                                    </span>
+                                </span>
+                            </div>
+                            <div class="flex justify-between text-gray-400 mb-1">
+                                <span>
+                                    {{ task.type }} 
+                                    <span v-if="task.tokens > 0" class="text-purple-600 font-bold ml-1 border border-purple-200 bg-purple-100 px-1 rounded">Token: {{ task.tokens }}</span>
+                                </span>
+                                <span v-if="task.end_time">{{ new Date(task.end_time).toLocaleTimeString() }}</span>
+                                <span v-else>启动于 {{ new Date(task.created_at || Date.now()).toLocaleTimeString() }}</span>
+                            </div>
+
+                            <div v-if="task.status === 'running' && task.stdout" class="mt-2 bg-gray-900 text-green-400 p-2 rounded text-xs font-mono max-h-24 overflow-y-auto whitespace-pre-wrap shadow-inner leading-relaxed border border-gray-700">
+                                {{ task.stdout.split('\n').slice(-4).join('\n') || '等待进程回传数据...' }}
+                            </div>
+                            
+                            <div v-if="task.ref_file" class="text-xs text-gray-500 border-t border-gray-100 pt-1 mt-1 truncate" :title="task.ref_file">
+                                <i class="fa-solid fa-book-open text-gray-400 mr-1"></i>{{ task.ref_file }}
+                            </div>
+
+                            <div v-if="task.status === 'cancelled'" class="mt-1 text-amber-700 break-words bg-white bg-opacity-60 p-1 rounded border border-amber-100 text-xs font-mono max-h-32 overflow-y-auto whitespace-pre-wrap">
+                                {{ task.error || task.stdout || '任务已终止' }}
+                            </div>
+
+                            <div v-if="['failed', 'error'].includes(task.status)" class="mt-1 text-red-500 break-words bg-white bg-opacity-50 p-1 rounded border border-red-100 text-xs font-mono max-h-32 overflow-y-auto whitespace-pre-wrap">
+                                {{ task.error || task.stderr || task.stdout || '未知错误' }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button v-if="taskList.length > 4" @click="showAllTasks = !showAllTasks" class="shrink-0 w-full text-xs text-blue-500 py-2 hover:bg-blue-50 rounded mt-2 transition-colors flex items-center justify-center gap-1">
+                        <span>{{ showAllTasks ? '收起列表' : `展开全部 (${taskList.length})` }}</span>
+                        <i :class="showAllTasks ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'"></i>
+                    </button>
+                </div>
+                <div class="flex flex-col min-h-[140px] flex-1">
+                    <div class="flex justify-between items-center mb-3 shrink-0">
+                        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider"><i class="fa-solid fa-box-archive mr-1"></i> 历史对话</h3>
+                        <div class="flex items-center gap-2">
+                            <button @click="createNewChat" class="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors" title="新建独立对话"><i class="fa-solid fa-plus mr-1"></i>新建</button>
+                            <button @click="copyCurrentChat" class="text-gray-500 hover:text-green-600" title="克隆当前对话及上下文"><i class="fa-solid fa-copy"></i></button>
+                        </div>
+                    </div>
+                    <div class="space-y-1 flex-1 min-h-0 overflow-y-auto">
+                        <div v-for="chat in chats" :key="chat.id" 
+                             @click="currentChatId = chat.id"
+                             :class="['group p-2 rounded cursor-pointer transition-colors border', currentChatId === chat.id ? 'bg-blue-100 text-blue-700 border-blue-200' : 'hover:bg-gray-50 text-gray-600 border-transparent']">
+                            <div class="flex items-start gap-2">
+                                <div class="min-w-0 flex-1">
+                                    <input
+                                        v-if="chat.isRenaming"
+                                        v-model="chat.renameDraft"
+                                        @click.stop
+                                        @keydown.enter.prevent="saveRenameChat(chat.id)"
+                                        @keydown.esc.prevent="cancelRenameChat(chat.id)"
+                                        class="w-full text-sm px-2 py-1 rounded border border-blue-300 bg-white outline-none"
+                                    >
+                                    <div v-else class="text-xs font-medium truncate">{{ chat.title }}</div>
+                                    <div class="text-xs text-gray-400 mt-0.5">{{ formatChatCreatedAt(chat.createdAt) }}</div>
+                                </div>
+                                <div class="shrink-0 flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                    <button
+                                        v-if="chat.isRenaming"
+                                        @click.stop="saveRenameChat(chat.id)"
+                                        class="px-2 py-1 rounded border border-green-200 text-green-600 hover:bg-green-50 text-xs"
+                                        title="保存"
+                                    >
+                                        保存
+                                    </button>
+                                    <button
+                                        v-if="chat.isRenaming"
+                                        @click.stop="cancelRenameChat(chat.id)"
+                                        class="px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 text-xs"
+                                        title="取消"
+                                    >
+                                        取消
+                                    </button>
+                                    <button
+                                        v-if="!chat.isRenaming"
+                                        @click.stop="startRenameChat(chat.id)"
+                                        class="px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 text-xs"
+                                        title="重命名"
+                                    >
+                                        重命名
+                                    </button>
+                                    <button
+                                        v-if="!chat.isRenaming"
+                                        @click.stop="deleteChat(chat.id)"
+                                        :disabled="chats.length <= 1"
+                                        class="px-2 py-1 rounded border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed text-xs"
+                                        title="删除"
+                                    >
+                                        删除
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <hr class="border-gray-100">
+
+                <div v-if="currentChat" class="shrink-0">
+                    <button @click="chatParamsOpen = !chatParamsOpen" class="w-full flex items-center justify-between gap-2 px-2 py-1.5 -mx-2 rounded-lg hover:bg-gray-100 transition-colors" :title="chatParamsOpen ? '点击收起对话参数' : '点击展开对话参数'">
+                        <span class="flex items-center gap-1.5">
+                            <i class="fa-solid fa-sliders text-gray-400"></i>
+                            <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">当前对话参数</span>
+                        </span>
+                        <span class="flex items-center gap-1.5 text-xs text-gray-500">
+                            <i :class="chatParamsOpen ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'"></i>
+                            <span :class="chatParamsOpen ? 'text-blue-600' : 'text-gray-400'">{{ chatParamsOpen ? '收起' : '展开' }}</span>
+                        </span>
+                    </button>
+                    <div v-if="chatParamsOpen">
+                    <div class="flex justify-end mb-2">
+                        <button @click="resetCurrentChatDefaults" class="text-xs text-blue-600 hover:text-blue-800">恢复默认</button>
+                    </div>
+                    <input type="text" v-model="currentChat.title" placeholder="对话标题" class="w-full text-sm p-2 border border-gray-300 rounded mb-2">
+                    <select v-model="currentChat.model" class="w-full text-sm p-2 border border-gray-300 rounded mb-2 bg-white outline-none">
+                        <option value="deepseek-v4-flash">DeepSeek V4-Flash</option>
+                        <option value="deepseek-v4-pro">DeepSeek V4-Pro</option>
+                    </select>
+                    <div class="flex items-center justify-between gap-2 text-xs text-gray-600 mb-2">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" v-model="currentChat.thinking" class="rounded text-blue-600 focus:ring-blue-500">
+                            <span>思考</span>
+                        </label>
+                        <select v-if="currentChat.thinking" v-model="currentChat.reasoning_effort" class="text-xs border border-gray-300 rounded px-2 py-1 bg-white outline-none">
+                            <option value="high">high</option>
+                            <option value="max">max</option>
+                        </select>
+                    </div>
+                    <textarea v-model="currentChat.localForbidden" placeholder="局部禁用词 (仅当前对话生效)" class="w-full text-sm p-2 border border-gray-300 rounded h-12 mb-2 bg-red-50 outline-none placeholder-red-300 border-red-200"></textarea>
+
+                    <div class="bg-gray-50 p-2 rounded border border-gray-200 mb-2">
+                        <label class="text-xs text-gray-600 block mb-1">Temperature: <span class="text-blue-600 font-bold">{{ currentChat.temperature }}</span></label>
+                        <input type="range" v-model.number="currentChat.temperature" min="0" max="2" step="0.1" class="w-full h-1 bg-blue-200 rounded-lg appearance-none cursor-pointer mb-3">
+                        
+                        <label class="text-xs text-gray-600 block mb-1">Top P: <span class="text-blue-600 font-bold">{{ currentChat.top_p }}</span></label>
+                        <input type="range" v-model.number="currentChat.top_p" min="0" max="1" step="0.05" class="w-full h-1 bg-blue-200 rounded-lg appearance-none cursor-pointer mb-3">
+                    </div>
+
+                    <textarea v-model="currentChat.systemPrompt" placeholder="System Prompt (系统提示词)" class="w-full text-sm p-2 border border-gray-300 rounded h-20 mb-2 outline-none"></textarea>
+                    
+                    <button @click="clearCurrentChatMessages" class="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded text-sm font-medium transition-colors">
+                        <i class="fa-solid fa-trash-can mr-1"></i> 清空当前上下文记录
+                    </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-col h-full bg-white transition-all duration-300 z-20" 
+             :style="{ width: config.showWorkspace ? config.layoutRatio + '%' : '100%', boxShadow: '0 0 15px rgba(0,0,0,0.05)' }">
+            <div class="p-4 border-b border-gray-200 bg-white flex justify-between items-center gap-3 shadow-sm">
+                <h2 class="flex-1 min-w-0 truncate pr-2 font-bold text-gray-800"><i class="fa-regular fa-comments text-blue-500 mr-2"></i>{{ currentChat?.title || '未选择对话' }}</h2>
+                <div class="flex shrink-0 gap-2 items-center max-w-[80%]">
+                    <div class="flex items-center gap-2 shrink-0">
+                        <div class="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-2 py-1.5 shadow-sm">
+                            <i class="fa-solid fa-book text-blue-500 text-xs"></i>
+                            <select v-model="currentProject" @change="fetchChapters" class="text-xs bg-transparent outline-none text-gray-700 max-w-[140px] cursor-pointer" title="切换小说项目">
+                                <option v-for="p in projects" :value="p">{{ p }}</option>
+                            </select>
+                        </div>
+                        <div class="relative">
+                            <button @click="createMenuOpen = !createMenuOpen" class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-xl hover:bg-green-100 transition-colors whitespace-nowrap" title="新建">
+                                <i class="fa-solid fa-plus text-[11px]"></i><span>新建</span>
+                                <i class="fa-solid fa-chevron-down text-[9px]"></i>
+                            </button>
+                            <div v-if="createMenuOpen" class="absolute right-0 mt-1 w-36 bg-white border border-gray-200 rounded-lg shadow-lg z-20 overflow-hidden">
+                                <button @click="openProjectModal(); createMenuOpen = false" class="w-full text-left px-3 py-2 text-xs hover:bg-green-50 flex items-center gap-2">
+                                    <i class="fa-solid fa-book text-green-600 w-4"></i>新建小说
+                                </button>
+                                <button @click="openCreateModal(); createMenuOpen = false" class="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 flex items-center gap-2">
+                                    <i class="fa-solid fa-file-circle-plus text-blue-600 w-4"></i>新建章节
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-2 py-1.5 shadow-sm max-w-[220px]">
+                        <i class="fa-solid fa-magnifying-glass text-gray-400 text-xs"></i>
+                        <input
+                            id="workspaceSearchInput"
+                            v-model="workspaceSearchQuery"
+                            @input="handleWorkspaceSearchInput"
+                            @keydown="handleWorkspaceSearchKeydown"
+                            type="text"
+                            placeholder="查找工作台内容"
+                            class="w-20 lg:w-28 text-xs bg-transparent outline-none text-gray-700 placeholder:text-gray-400"
+                        >
+                        <span class="text-[11px] text-gray-400 min-w-[52px] text-right">
+                            {{ workspaceSearchResults.length ? `${Math.max(activeSearchResultIndex + 1, 1)}/${workspaceSearchResults.length}` : '0/0' }}
+                        </span>
+                        <button
+                            @click="moveSearchResult(-1)"
+                            :disabled="!workspaceSearchResults.length"
+                            class="h-6 w-6 rounded border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                            title="上一个"
+                        >
+                            <i class="fa-solid fa-chevron-up text-[10px]"></i>
+                        </button>
+                        <button
+                            @click="moveSearchResult(1)"
+                            :disabled="!workspaceSearchResults.length"
+                            class="h-6 w-6 rounded border border-gray-200 bg-white text-gray-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                            title="下一个"
+                        >
+                            <i class="fa-solid fa-chevron-down text-[10px]"></i>
+                        </button>
+                        <button
+                            v-if="workspaceSearchQuery"
+                            @click="clearWorkspaceSearch"
+                            class="h-6 w-6 rounded border border-gray-200 bg-white text-gray-500 hover:text-red-500 hover:border-red-200"
+                            title="清空查找"
+                        >
+                            <i class="fa-solid fa-xmark text-[10px]"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-6 chat-container space-y-6" id="chatContainer" :style="{ fontSize: config.fontSize + 'px' }">
+                <div v-if="!currentChat?.messages.length" class="h-full flex flex-col items-center justify-center text-gray-400 space-y-4">
+                    <i class="fa-regular fa-paper-plane text-4xl mb-2 opacity-50"></i>
+                    <p>输入指令，执行交互式对话或文本生成...</p>
+                </div>
+
+                <div v-for="(msg, index) in currentChat?.messages" :key="index" :data-message-index="index" class="flex flex-col">
+                    <div v-if="msg.role === 'user'" class="self-end w-full flex flex-col items-end gap-2" style="max-width: 85%">
+                        <div :class="['bg-blue-600 text-white p-4 rounded-2xl rounded-tr-sm shadow-md w-full transition-all', isActiveSearchMessage(index) ? 'ring-2 ring-yellow-300 ring-offset-2 ring-offset-white' : (isSearchMatchMessage(index) ? 'ring-1 ring-yellow-200 ring-offset-1 ring-offset-white' : '')]">
+                            <div
+                                class="leading-relaxed whitespace-pre-wrap"
+                                style="font-size: 0.95em"
+                                :style="msg.collapsed && shouldCollapseUserMessage(msg.content) ? { display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' } : {}"
+                            >{{ msg.content }}</div>
+                            <div class="mt-3 flex items-center justify-end gap-2 text-xs">
+                                <button
+                                    @click="copyMessageContent(index)"
+                                    class="px-2 py-1 rounded border border-white/20 hover:bg-white/10 transition-colors"
+                                >
+                                    复制
+                                </button>
+                                <button
+                                    @click="startEditUserMessage(index)"
+                                    class="px-2 py-1 rounded border border-white/20 hover:bg-white/10 transition-colors"
+                                >
+                                    修改
+                                </button>
+                                <button
+                                    v-if="shouldCollapseUserMessage(msg.content)"
+                                    @click="toggleUserMessageCollapse(index)"
+                                    class="px-2 py-1 rounded border border-white/20 hover:bg-white/10 transition-colors"
+                                >
+                                    {{ msg.collapsed ? '展开' : '收起' }}
+                                </button>
+                            </div>
+                        </div>
+                        <div v-if="msg.isEditing" class="w-full bg-white border border-blue-200 rounded-2xl shadow-sm p-3">
+                            <textarea
+                                v-model="msg.editDraft"
+                                rows="6"
+                                class="w-full border border-gray-200 rounded-xl px-3 py-2 outline-none resize-y text-gray-700"
+                            ></textarea>
+                            <div class="mt-3 flex items-center justify-end gap-2 text-sm">
+                                <button
+                                    @click="cancelEditUserMessage(index)"
+                                    class="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                                >
+                                    取消
+                                </button>
+                                <button
+                                    @click="saveEditUserMessage(index)"
+                                    class="px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                                >
+                                    保存
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div v-else :class="['self-start w-full bg-gray-50 border p-5 rounded-2xl rounded-tl-sm shadow-sm group transition-all', isActiveSearchMessage(index) ? 'border-yellow-300 ring-2 ring-yellow-200' : (isSearchMatchMessage(index) ? 'border-yellow-200' : 'border-gray-200')]" style="max-width: 95%">
+                        <div class="markdown-body leading-relaxed text-gray-700" style="font-size: 0.95em"
+                             v-html="renderMarkdown(msg.versions[msg.active_version].content)">
+                        </div>
+                        
+                        <div class="mt-4 flex items-center justify-between text-xs text-gray-500">
+                            <div v-if="msg.versions.length > 1" class="flex items-center gap-2 bg-white px-2 py-1 rounded border border-gray-200">
+                                <button
+                                    @click="msg.active_version = Math.max(0, msg.active_version - 1)"
+                                    :disabled="msg.active_version === 0"
+                                    class="px-2 py-1 rounded border border-gray-200 text-gray-600 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    上一版
+                                </button>
+                                <span>版本 {{ msg.active_version + 1 }} / {{ msg.versions.length }}</span>
+                                <button
+                                    @click="msg.active_version = Math.min(msg.versions.length - 1, msg.active_version + 1)"
+                                    :disabled="msg.active_version === msg.versions.length - 1"
+                                    class="px-2 py-1 rounded border border-gray-200 text-gray-600 hover:text-blue-600 hover:border-blue-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    下一版
+                                </button>
+                            </div>
+                            <div v-else></div>
+
+                            <div class="flex items-center gap-3">
+                                <span>字数: {{ msg.versions[msg.active_version].content.length }}</span>
+                                <button @click="copyMessageContent(index)" class="hover:text-blue-600 transition-colors flex items-center gap-1 bg-white px-2 py-1 rounded shadow-sm border border-gray-200">
+                                    <i class="fa-regular fa-copy"></i> 复制
+                                </button>
+                                <button @click="retryAssistantMessage(index)" :disabled="isGenerating" class="hover:text-blue-600 disabled:opacity-50 transition-colors flex items-center gap-1 bg-white px-2 py-1 rounded shadow-sm border border-gray-200">
+                                    <i class="fa-solid fa-rotate-right"></i> 重试
+                                </button>
+                                <button v-if="config.showWorkspace && projects.length" @click="importToNovel(msg.versions[msg.active_version].content)" class="hover:text-blue-600 transition-colors flex items-center gap-1 bg-white px-2 py-1 rounded shadow-sm border border-gray-200">
+                                    <i class="fa-solid fa-file-import"></i> 导入小说末尾
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div v-if="isGenerating" class="self-start text-gray-400 text-sm animate-pulse flex items-center gap-2">
+                    <i class="fa-solid fa-circle-notch fa-spin"></i> 模型流式生成中...
+                </div>
+            </div>
+
+            <div class="p-4 bg-gray-50 border-t border-gray-200 space-y-3">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <div class="relative">
+                        <button @click="quickPromptOpen = !quickPromptOpen" class="px-3 py-1.5 text-xs font-medium rounded-full border border-blue-200 bg-white text-blue-700 hover:bg-blue-50 transition-colors shadow-sm flex items-center gap-1.5">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> 快捷指令 <i :class="quickPromptOpen ? 'fa-solid fa-chevron-up text-[9px]' : 'fa-solid fa-chevron-down text-[9px]'"></i>
+                        </button>
+                        <div v-if="quickPromptOpen" class="absolute bottom-full left-0 mb-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                            <button
+                                v-for="item in quickPromptButtons"
+                                :key="item.key"
+                                @click="applyQuickPrompt(item.key); quickPromptOpen = false"
+                                class="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 flex items-center gap-2"
+                            >
+                                <i :class="item.icon" class="text-blue-500 w-4"></i>{{ item.label }}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded-full border border-purple-200">Token: {{ currentChat?.stats?.total_tokens || 0 }}</span>
+                        <span class="text-xs text-red-500 bg-red-50 px-2 py-1 rounded-full border border-red-200">拦截: {{ currentChat?.stats?.local_hit_count || 0 }}</span>
+                        <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full border border-gray-200">{{ currentChat?.model }}</span>
+                    </div>
+                </div>
+                <div v-if="lastInjectedLabel" class="text-xs text-gray-500 flex items-center gap-2">
+                    <button
+                        @mousedown.prevent="clearInjectedWorkspaceContext"
+                        class="px-2 py-0.5 rounded border border-gray-200 bg-white text-gray-500 hover:text-red-500 hover:border-red-200 transition-colors"
+                    >
+                        退出模板
+                    </button>
+                    <i class="fa-solid fa-link text-blue-500"></i>
+                    <span>当前工作台上下文：{{ lastInjectedLabel }} | 模板：{{ lastInjectedTemplate }}</span>
+                </div>
+                <div class="flex items-end gap-3">
+                    <div class="relative flex-1 bg-white rounded-xl border border-gray-300 shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent overflow-hidden transition-all duration-200" :style="{ minHeight: composerHeight + 'px' }">
+                        <textarea id="workspaceComposer" v-model="chatInput" @focus="handleComposerFocus" @blur="handleComposerBlur" @keydown.enter.prevent="sendMessage" :disabled="isGenerating" placeholder="输入指令 (Enter 发送)" rows="1" class="w-full py-3 px-4 outline-none resize-none bg-transparent transition-all duration-200" :style="{ minHeight: composerHeight + 'px', maxHeight: composerHeight + 'px' }"></textarea>
+                    </div>
+                    <button v-if="isGenerating" @click="stopGeneration" class="shrink-0 self-end mb-2 h-11 px-4 bg-red-50 text-red-600 border border-red-200 rounded-xl hover:bg-red-100 transition-colors font-medium">
+                        中断
+                    </button>
+                    <button v-else @click="sendMessage" :disabled="!chatInput.trim()" class="shrink-0 self-end mb-2 h-11 px-5 bg-blue-600 text-white disabled:bg-gray-200 disabled:text-gray-400 rounded-xl hover:bg-blue-700 transition-colors font-medium shadow-sm">
+                        发送
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="config.showWorkspace" class="bg-gray-50 flex flex-col transition-all duration-300 border-l border-gray-200" :style="{ width: (100 - config.layoutRatio) + '%' }">
+            <div class="flex border-b border-gray-200 bg-white">
+                <button @click="activeTab = 'editor'" :class="['flex-1 py-3 text-sm font-medium border-b-2 transition-colors', activeTab === 'editor' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50']">
+                    <i class="fa-solid fa-pen-nib mr-1"></i> 内容编辑
+                </button>
+                <button @click="activeTab = 'workflow'" :class="['flex-1 py-3 text-sm font-medium border-b-2 transition-colors', activeTab === 'workflow' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50']">
+                    <i class="fa-solid fa-gears mr-1"></i> 自动化工作流
+                </button>
+                <button @click="activeTab = 'knowledge'" :class="['flex-1 py-3 text-sm font-medium border-b-2 transition-colors', activeTab === 'knowledge' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50']">
+                    <i class="fa-solid fa-database mr-1"></i> 知识库管理
+                </button>
+            </div>
+
+            <div v-if="activeTab === 'editor'" class="flex-1 flex flex-col p-4 overflow-hidden">
+                <div v-if="projects.length === 0" class="h-full flex flex-col items-center justify-center text-gray-400">
+                    <i class="fa-solid fa-folder-open text-4xl mb-3 opacity-50"></i>
+                    <p class="text-sm">尚未定位到项目，请在【自动化工作流】中生成或加载</p>
+                </div>
+                <template v-else>
+                    <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200 mb-3 space-y-3 shrink-0">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-book text-gray-400"></i>
+                            <select v-model="currentProject" @change="fetchChapters" class="flex-1 text-sm bg-gray-50 border border-gray-200 rounded p-1.5 outline-none focus:ring-1 focus:ring-blue-500">
+                                <option v-for="p in projects" :value="p">{{ p }}</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-2 w-full"> 
+                            <i class="fa-regular fa-file-lines text-gray-400 shrink-0"></i> 
+                            <select v-model="currentChapter" @change="fetchContent" class="w-0 flex-1 text-sm bg-gray-50 border border-gray-200 rounded p-1.5 outline-none focus:ring-1 focus:ring-blue-500 text-ellipsis"> 
+                                <option v-for="c in chapters" :value="c">{{ formatChapterLabel(c) }}</option> 
+                            </select> 
+                            <div class="flex gap-1 shrink-0 pl-2 border-l border-gray-200"> 
+                                <button @click="renameChapter" class="p-1.5 text-gray-500 hover:text-blue-600 rounded bg-gray-100 hover:bg-gray-200 transition-colors" title="重命名章节"><i class="fa-solid fa-pencil"></i></button> 
+                                <button @click="openCreateModal" class="px-2 py-1.5 text-green-700 hover:text-green-800 rounded bg-green-100 hover:bg-green-200 font-bold transition-colors shadow-sm" title="新建下一章"><i class="fa-solid fa-plus"></i> 新建</button> 
+                            </div> 
+                        </div> 
+                    </div>
+
+                    <div class="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col overflow-hidden relative">
+                        <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs text-gray-400 flex justify-between items-center">
+                            <span>文本编辑器</span>
+                            <div class="flex items-center gap-3">
+                                <button @click="injectEditorContentToWorkspace" :disabled="!editorContent.trim()" class="text-blue-600 hover:text-blue-800 disabled:opacity-50">
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> 注入工作台
+                                </button>
+                                <span :class="saveStatus === '已保存' ? 'text-green-500' : 'text-yellow-500'">{{ saveStatus }} (字数统计: {{ editorContent.length }})</span>
+                            </div>
+                        </div>
+                        <textarea v-model="editorContent" @input="debouncedSave" class="flex-1 w-full p-4 resize-none outline-none leading-relaxed text-gray-700 bg-transparent" :style="{ fontSize: config.fontSize + 'px' }"></textarea>
+                    </div>
+                </template>
+            </div>
+
+            <div v-if="activeTab === 'workflow'" class="flex-1 overflow-y-auto p-4 space-y-4">
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    <button @click="workflowCardOpen = !workflowCardOpen" class="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                        <h3 class="text-sm font-bold text-gray-800 flex items-center gap-2"><i class="fa-solid fa-rocket text-green-500"></i> 小说创作工程 (novel_projects)</h3>
+                        <i :class="workflowCardOpen ? 'fa-solid fa-chevron-up text-gray-400' : 'fa-solid fa-chevron-down text-gray-400'"></i>
+                    </button>
+                    <div v-if="workflowCardOpen" class="px-5 pb-5">
+                    <div class="p-3 border border-gray-200 rounded">
+                        <h4 class="text-xs font-bold text-gray-600 mb-2">执行创作与辅助功能 (针对当前选中项目)</h4>
+                        <p class="text-xs text-gray-400 mb-2">当前选中的项目：<span class="font-bold text-blue-600">{{ currentProject || '未选择' }}</span></p>
+                        
+                        <label class="text-xs text-gray-500 block mb-1">执行脚本类型</label>
+                        <select v-model="workflowProjectScript" class="w-full text-sm border border-gray-300 rounded p-2 mb-3 bg-gray-50 outline-none">
+                            <option value="f4c">f4c - 构建工程前文记忆库</option>
+                            <option value="f4a">f4a - 设定补全 (世界观/角色)</option>
+                            <option value="f5a">f5a - 章节大纲生成</option>
+                            <option value="f5b">f5b - 小说正文生成</option>
+                            <option value="f5c">f5c - 现有章节智能改写</option>
+                            <option value="f6">f6 - 剧情方向推演（实验功能）</option>
+                            <option value="f7">f7 - 文本多维度校验（实验功能）</option>
+                        </select>
+
+                        <div v-if="['f6', 'f7'].includes(workflowProjectScript)" class="mb-3 p-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded">
+                            当前选择的是实验功能。`f6 / f7` 仍处于预留与探索阶段，尚未完成，不属于当前 MVP 稳定主链路，建议仅用于内部验证说明。
+                        </div>
+
+                        <div class="mb-3 flex items-end gap-2">
+                            <div class="flex-1">
+                                <label class="text-xs text-gray-500 block mb-1">推理模型</label>
+                                <select v-model="workflowProjectModel" class="w-full text-sm border border-gray-300 rounded p-2 bg-gray-50 outline-none">
+                                    <option value="deepseek-v4-flash">DeepSeek V4-Flash</option>
+                                    <option value="deepseek-v4-pro">DeepSeek V4-Pro</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center gap-2 pb-2">
+                                <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+                                    <input type="checkbox" v-model="workflowProjectThinking" class="rounded text-blue-600 focus:ring-blue-500">
+                                    <span>思考</span>
+                                </label>
+                                <select v-if="workflowProjectThinking" v-model="workflowProjectReasoningEffort" class="text-xs border border-gray-300 rounded px-2 py-1 bg-white outline-none">
+                                    <option value="high">high</option>
+                                    <option value="max">max</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div v-if="workflowProjectScript === 'f4a'" class="mb-3">
+                            <button @click="workflowF4aOpen = !workflowF4aOpen" class="w-full flex items-center justify-between px-3 py-2 mb-2 text-xs font-bold text-gray-600 bg-gray-50 border border-gray-200 rounded hover:bg-gray-100 transition-colors">
+                                <span class="flex items-center gap-2"><i class="fa-solid fa-address-card text-gray-400"></i> 设定补全表单 <span class="text-gray-400 font-normal">({{ workflowF4aMode === 'worldview' ? '世界观' : '角色卡' }})</span></span>
+                                <i :class="workflowF4aOpen ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'"></i>
+                            </button>
+                            <div v-if="workflowF4aOpen">
+                            <label class="text-xs text-gray-500 block mb-1">补全模式</label>
+                            <select v-model="workflowF4aMode" class="w-full text-sm border border-gray-300 rounded p-2 mb-2 bg-gray-50 outline-none">
+                                <option value="worldview">世界观补全 (worldview)</option>
+                                <option value="character">角色卡补全 (character)</option>
+                            </select>
+                            
+                            <div v-if="workflowF4aMode === 'worldview'" class="space-y-2">
+                                <div>
+                                    <label class="text-xs text-gray-500 block mb-1 font-bold">核心世界观 (Worldview) <span class="text-red-500">*</span></label>
+                                    <textarea v-model="f4aWorldview.worldview" placeholder="描述世界的基本规则、背景..." class="w-full text-sm border border-gray-300 rounded p-2 h-20 outline-none"></textarea>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-500 block mb-1 font-bold">力量体系 (Power System) <span class="text-red-500">*</span></label>
+                                    <input type="text" v-model="f4aWorldview.power_system" placeholder="例如：炼气、筑基..." class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="text-xs text-gray-500 block mb-1">小说类型 (Type)</label>
+                                        <input type="text" v-model="f4aWorldview.type" placeholder="玄幻/都市/..." class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-500 block mb-1">女主数量 (Heroines)</label>
+                                        <input type="text" v-model="f4aWorldview.heroines" placeholder="单女主/多女主/无CP" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label class="text-xs text-gray-500 block mb-1">金手指/核心爽点 (Cheat)</label>
+                                    <input type="text" v-model="f4aWorldview.cheat" placeholder="系统/老爷爷/重生..." class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="text-xs text-gray-500 block mb-1">主要势力 (Factions)</label>
+                                        <input type="text" v-model="f4aWorldview.factions" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-500 block mb-1">核心资源 (Resources)</label>
+                                        <input type="text" v-model="f4aWorldview.resources" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="text-xs text-gray-500 block mb-1">历史/传说 (History)</label>
+                                    <textarea v-model="f4aWorldview.history" class="w-full text-sm border border-gray-300 rounded p-2 h-16 outline-none"></textarea>
+                                </div>
+                                
+                                <div>
+                                    <label class="text-xs text-gray-500 block mb-1">出场角色 (Characters)</label>
+                                    <input type="text" v-model="f4aWorldview.characters" placeholder="简单列举关键人物..." class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                </div>
+                                
+                                <div>
+                                    <label class="text-xs text-gray-500 block mb-1">其他补充 (Others)</label>
+                                    <input type="text" v-model="f4aWorldview.others" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                </div>
+                            </div>
+                            
+                            <div v-else class="space-y-2">
+                                <div class="flex gap-2">
+                                    <div class="flex-1">
+                                        <label class="text-xs text-gray-500 block mb-1 font-bold">角色名 <span class="text-red-500">*</span></label>
+                                        <input type="text" v-model="f4aChar.name" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                    </div>
+                                    <div class="w-1/3">
+                                        <label class="text-xs text-gray-500 block mb-1 font-bold">类型 <span class="text-red-500">*</span></label>
+                                        <select v-model="f4aChar.char_type" class="w-full text-sm border border-gray-300 rounded p-2 bg-white outline-none">
+                                            <option value="男主角">男主角</option>
+                                            <option value="女主角">女主角</option>
+                                            <option value="配角">配角</option>
+                                            <option value="反派">反派</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label class="text-xs text-gray-500 block mb-1 font-bold">人物塑造 (Shape) <span class="text-red-500">*</span></label>
+                                    <select v-model="f4aChar.char_shape" class="w-full text-sm border border-gray-300 rounded p-2 bg-white outline-none">
+                                        <option value="圆形人物">圆形人物 (复杂多面)</option>
+                                        <option value="扁平人物">扁平人物 (单一特征)</option>
+                                    </select>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="text-xs text-gray-500 block mb-1">身份 (Identity)</label>
+                                        <input type="text" v-model="f4aChar.identity" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-500 block mb-1">性格 (Personality)</label>
+                                        <input type="text" v-model="f4aChar.personality" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="text-xs text-gray-500 block mb-1">外貌 (Appearance)</label>
+                                    <input type="text" v-model="f4aChar.appearance" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                </div>
+                                
+                                <div>
+                                    <label class="text-xs text-gray-500 block mb-1">能力/境界 (Ability)</label>
+                                    <input type="text" v-model="f4aChar.ability" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                </div>
+
+                                <div>
+                                    <label class="text-xs text-gray-500 block mb-1">经历 (Experience)</label>
+                                    <textarea v-model="f4aChar.experience" class="w-full text-sm border border-gray-300 rounded p-2 h-16 outline-none"></textarea>
+                                </div>
+
+                                <div>
+                                    <label class="text-xs text-gray-500 block mb-1">对主角态度 (Attitude)</label>
+                                    <input type="text" v-model="f4aChar.attitude" placeholder="如：爱慕、敌视、利用..." class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                </div>
+                            </div>
+                            </div>
+                        </div>
+
+                        <div v-if="['f5a', 'f5b', 'f5c', 'f7'].includes(workflowProjectScript)" class="mb-3"> 
+                            <label class="text-xs text-gray-500 block mb-1">目标章节名 <span class="text-amber-500 text-[11px]">(可留空)</span></label> 
+                            <div class="flex gap-2"> 
+                                <select v-model="workflowChapterSelect" @change="workflowChapterName = workflowChapterSelect" class="w-1/3 text-sm border border-gray-300 rounded p-2 bg-gray-50 outline-none"> 
+                                    <option value="">-- 选择现有章节 --</option> 
+                                    <option v-for="chap in chapters" :value="chap.replace('.txt', '')">{{ formatChapterLabel(chap) }}</option> 
+                                </select> 
+                                <input type="text" v-model="workflowChapterName" placeholder="例如：第一章；留空则自动命名" class="flex-1 text-sm border border-gray-300 rounded p-2 focus:ring-1 focus:ring-blue-500 outline-none"> 
+                                <button @click="openCreateModal" class="px-3 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded text-sm hover:bg-blue-100 transition-colors shrink-0 shadow-sm" title="在底层物理创建此章节"> 
+                                    <i class="fa-solid fa-file-circle-plus"></i> 预建 
+                                </button> 
+                            </div> 
+                        </div> 
+
+                        <div v-if="workflowProjectScript === 'f5a'" class="mb-3 space-y-4">
+                            <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="text-sm font-bold text-indigo-800">f5a 最小输入</h4>
+                                    <button @click="showF5aAdvanced = !showF5aAdvanced" class="px-2 py-1 text-xs text-indigo-700 bg-white border border-indigo-200 rounded hover:bg-indigo-100 transition-colors">
+                                        {{ showF5aAdvanced ? '收起高级设置' : '高级设置' }}
+                                    </button>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-500 block mb-1 font-bold">本章梗概 <span class="text-red-500">*</span></label>
+                                    <textarea v-model="workflowChapterBrief" placeholder="必填。一句话概括本章，尽量使用起因-经过-结果形式" class="w-full text-sm border border-gray-300 rounded p-2 h-20 outline-none focus:ring-1 focus:ring-blue-500"></textarea>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-500 block mb-1 font-bold">本章边界 <span class="text-amber-500 text-[11px]">(推荐)</span></label>
+                                    <input v-model="workflowF5aPosition.boundary" type="text" placeholder="推荐填写。写到哪里停；不填则由模型自行判断本章收束位置" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                </div>
+                                <p class="text-xs text-indigo-700 bg-white border border-indigo-100 rounded p-2">
+                                    默认只显示最小输入。当前只有本章梗概为必填；本章边界为推荐填写。若需要更稳定地控制大纲方向，再展开“高级设置”补充章节定位与结构。
+                                </p>
+                            </div>
+
+                            <div v-if="showF5aAdvanced" class="bg-indigo-50 border border-indigo-200 rounded-lg p-3 space-y-3">
+                                <h4 class="text-sm font-bold text-indigo-800">第一层：本章定位（高级）</h4>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="text-xs text-gray-500 block mb-1">所处阶段</label>
+                                        <select v-model="workflowF5aPosition.event_stage" class="w-full text-sm border border-gray-300 rounded p-2 bg-white outline-none">
+                                            <option value="无指定">无指定</option>
+                                            <option value="事件开端">事件开端</option>
+                                            <option value="事件推进">事件推进</option>
+                                            <option value="事件高潮">事件高潮</option>
+                                            <option value="事件收束">事件收束</option>
+                                            <option value="日常">日常</option>
+                                            <option value="单章事件">单章事件</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-500 block mb-1">小说位置</label>
+                                        <select v-model="workflowF5aPosition.novel_stage" class="w-full text-sm border border-gray-300 rounded p-2 bg-white outline-none">
+                                            <option value="无指定">无指定</option>
+                                            <option value="前期">前期</option>
+                                            <option value="中期">中期</option>
+                                            <option value="后期">后期</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-500 block mb-1">人称</label>
+                                        <select v-model="workflowF5aPosition.person" class="w-full text-sm border border-gray-300 rounded p-2 bg-white outline-none">
+                                            <option value="无指定">无指定</option>
+                                            <option value="第一人称">第一人称</option>
+                                            <option value="有限制第三人称">有限制第三人称</option>
+                                            <option value="无限制第三人称">无限制第三人称</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-500 block mb-1">视角</label>
+                                        <select v-model="workflowF5aPosition.perspective" class="w-full text-sm border border-gray-300 rounded p-2 bg-white outline-none">
+                                            <option value="无指定">无指定</option>
+                                            <option value="男主视角">男主视角</option>
+                                            <option value="女主视角">女主视角</option>
+                                            <option value="中立视角">中立视角</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-500 block mb-1">字数</label>
+                                        <input v-model="workflowF5aPosition.target_words" type="text" placeholder="默认3000字左右" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-500 block mb-1">叙事节奏</label>
+                                        <select v-model="workflowF5aPosition.pace" class="w-full text-sm border border-gray-300 rounded p-2 bg-white outline-none">
+                                            <option value="无指定">无指定</option>
+                                            <option value="慢">慢</option>
+                                            <option value="中">中</option>
+                                            <option value="快">快</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-500 block mb-1">场景切换</label>
+                                        <select v-model="workflowF5aPosition.scene_switch" class="w-full text-sm border border-gray-300 rounded p-2 bg-white outline-none">
+                                            <option value="无指定">无指定</option>
+                                            <option value="无">无</option>
+                                            <option value="一次">一次</option>
+                                            <option value="多次">多次</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-500 block mb-1">叙事方式</label>
+                                        <select v-model="workflowF5aPosition.narrative" class="w-full text-sm border border-gray-300 rounded p-2 bg-white outline-none">
+                                            <option v-for="option in f5aNarrativeOptions" :key="'position-narrative-' + option" :value="option">{{ option }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-500 block mb-1">出场角色</label>
+                                    <input v-model="workflowF5aPosition.characters" type="text" placeholder="请输入角色名，用逗号分隔" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-500 block mb-2">本章功能（选择1-3个）</label>
+                                    <div class="flex flex-wrap gap-2">
+                                        <label v-for="option in f5aFunctionOptions" :key="option" class="text-xs px-2 py-1 rounded border border-indigo-200 bg-white cursor-pointer hover:bg-indigo-100 transition-colors">
+                                            <input type="checkbox" :value="option" v-model="workflowF5aPosition.chapter_functions" class="mr-1 accent-indigo-600">
+                                            {{ option }}
+                                        </label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-500 block mb-1">本章禁止事项</label>
+                                    <textarea v-model="workflowF5aPosition.ban" placeholder="默认无指定；需要时再补充具体禁止事项" class="w-full text-sm border border-gray-300 rounded p-2 h-16 outline-none"></textarea>
+                                </div>
+                            </div>
+
+                            <div v-if="showF5aAdvanced" class="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-3">
+                                <h4 class="text-sm font-bold text-amber-800">第二层：本章结构</h4>
+
+                                <div class="space-y-3">
+                                    <div class="bg-white border border-amber-100 rounded p-3 space-y-2">
+                                        <h5 class="text-sm font-semibold text-gray-700">开端 / 承接</h5>
+                                        <input v-model="workflowF5aStructure.opening.content" type="text" placeholder="本章内容：一句话概括" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                        <input v-model="workflowF5aStructure.opening.ban" type="text" placeholder="禁止事项：若无填无" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <select v-model="workflowF5aStructure.opening.narrative" class="text-sm border border-gray-300 rounded p-2 bg-gray-50 outline-none">
+                                                <option v-for="option in f5aNarrativeOptions" :key="'opening-' + option" :value="option">{{ option }}</option>
+                                            </select>
+                                            <select v-model="workflowF5aStructure.opening.drive" class="text-sm border border-gray-300 rounded p-2 bg-gray-50 outline-none">
+                                                <option v-for="option in f5aDriveOptions" :key="'opening-drive-' + option" :value="option">{{ option }}</option>
+                                            </select>
+                                        </div>
+                                        <div class="flex flex-wrap gap-2">
+                                            <label v-for="option in f5aDepictionOptions" :key="'opening-depict-' + option" class="text-xs px-2 py-1 rounded border border-amber-200 bg-amber-50 cursor-pointer">
+                                                <input type="checkbox" :value="option" v-model="workflowF5aStructure.opening.depiction" class="mr-1 accent-amber-600">
+                                                {{ option }}
+                                            </label>
+                                        </div>
+                                        <input v-model="workflowF5aStructure.opening.word_ratio" type="text" placeholder="字数占比：如 20%，约600-700字" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                        <select v-model="workflowF5aStructure.opening.reveal" class="w-full text-sm border border-gray-300 rounded p-2 bg-gray-50 outline-none">
+                                            <option v-for="option in f5aRevealOptions" :key="'opening-reveal-' + option" :value="option">{{ option }}</option>
+                                        </select>
+                                        <input v-model="workflowF5aStructure.opening.foreshadowing" type="text" placeholder="伏笔/铺垫：若无填无" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                    </div>
+
+                                    <div class="bg-white border border-amber-100 rounded p-3 space-y-2">
+                                        <h5 class="text-sm font-semibold text-gray-700">铺垫 / 延展</h5>
+                                        <input v-model="workflowF5aStructure.buildup.content" type="text" placeholder="本章内容：一句话概括" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                        <input v-model="workflowF5aStructure.buildup.ban" type="text" placeholder="禁止事项：若无填无" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <select v-model="workflowF5aStructure.buildup.narrative" class="text-sm border border-gray-300 rounded p-2 bg-gray-50 outline-none">
+                                                <option v-for="option in f5aNarrativeOptions" :key="'buildup-' + option" :value="option">{{ option }}</option>
+                                            </select>
+                                            <select v-model="workflowF5aStructure.buildup.drive" class="text-sm border border-gray-300 rounded p-2 bg-gray-50 outline-none">
+                                                <option v-for="option in f5aDriveOptions" :key="'buildup-drive-' + option" :value="option">{{ option }}</option>
+                                            </select>
+                                        </div>
+                                        <div class="flex flex-wrap gap-2">
+                                            <label v-for="option in f5aDepictionOptions" :key="'buildup-depict-' + option" class="text-xs px-2 py-1 rounded border border-amber-200 bg-amber-50 cursor-pointer">
+                                                <input type="checkbox" :value="option" v-model="workflowF5aStructure.buildup.depiction" class="mr-1 accent-amber-600">
+                                                {{ option }}
+                                            </label>
+                                        </div>
+                                        <input v-model="workflowF5aStructure.buildup.word_ratio" type="text" placeholder="字数占比：如 35%，约1000字" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                        <select v-model="workflowF5aStructure.buildup.reveal" class="w-full text-sm border border-gray-300 rounded p-2 bg-gray-50 outline-none">
+                                            <option v-for="option in f5aRevealOptions" :key="'buildup-reveal-' + option" :value="option">{{ option }}</option>
+                                        </select>
+                                        <input v-model="workflowF5aStructure.buildup.foreshadowing" type="text" placeholder="伏笔/铺垫：若无填无" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                    </div>
+
+                                    <div class="bg-white border border-amber-100 rounded p-3 space-y-2">
+                                        <h5 class="text-sm font-semibold text-gray-700">高潮 / 爽点</h5>
+                                        <input v-model="workflowF5aStructure.climax.content" type="text" placeholder="本章内容：一句话概括" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                        <input v-model="workflowF5aStructure.climax.ban" type="text" placeholder="禁止事项：若无填无" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <select v-model="workflowF5aStructure.climax.narrative" class="text-sm border border-gray-300 rounded p-2 bg-gray-50 outline-none">
+                                                <option v-for="option in f5aNarrativeOptions" :key="'climax-' + option" :value="option">{{ option }}</option>
+                                            </select>
+                                            <select v-model="workflowF5aStructure.climax.drive" class="text-sm border border-gray-300 rounded p-2 bg-gray-50 outline-none">
+                                                <option v-for="option in f5aDriveOptions" :key="'climax-drive-' + option" :value="option">{{ option }}</option>
+                                            </select>
+                                        </div>
+                                        <div class="flex flex-wrap gap-2">
+                                            <label v-for="option in f5aDepictionOptions" :key="'climax-depict-' + option" class="text-xs px-2 py-1 rounded border border-amber-200 bg-amber-50 cursor-pointer">
+                                                <input type="checkbox" :value="option" v-model="workflowF5aStructure.climax.depiction" class="mr-1 accent-amber-600">
+                                                {{ option }}
+                                            </label>
+                                        </div>
+                                        <input v-model="workflowF5aStructure.climax.word_ratio" type="text" placeholder="字数占比：如 30%，约900字" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                        <select v-model="workflowF5aStructure.climax.reveal" class="w-full text-sm border border-gray-300 rounded p-2 bg-gray-50 outline-none">
+                                            <option v-for="option in f5aRevealOptions" :key="'climax-reveal-' + option" :value="option">{{ option }}</option>
+                                        </select>
+                                        <input v-model="workflowF5aStructure.climax.foreshadowing" type="text" placeholder="伏笔/铺垫：若无填无" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                    </div>
+
+                                    <div class="bg-white border border-amber-100 rounded p-3 space-y-2">
+                                        <h5 class="text-sm font-semibold text-gray-700">钩子 / 结尾</h5>
+                                        <input v-model="workflowF5aStructure.ending.content" type="text" placeholder="本章内容：一句话概括" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                        <input v-model="workflowF5aStructure.ending.ban" type="text" placeholder="禁止事项：若无填无" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <select v-model="workflowF5aStructure.ending.narrative" class="text-sm border border-gray-300 rounded p-2 bg-gray-50 outline-none">
+                                                <option v-for="option in f5aNarrativeOptions" :key="'ending-' + option" :value="option">{{ option }}</option>
+                                            </select>
+                                            <select v-model="workflowF5aStructure.ending.drive" class="text-sm border border-gray-300 rounded p-2 bg-gray-50 outline-none">
+                                                <option v-for="option in f5aDriveOptions" :key="'ending-drive-' + option" :value="option">{{ option }}</option>
+                                            </select>
+                                        </div>
+                                        <div class="flex flex-wrap gap-2">
+                                            <label v-for="option in f5aDepictionOptions" :key="'ending-depict-' + option" class="text-xs px-2 py-1 rounded border border-amber-200 bg-amber-50 cursor-pointer">
+                                                <input type="checkbox" :value="option" v-model="workflowF5aStructure.ending.depiction" class="mr-1 accent-amber-600">
+                                                {{ option }}
+                                            </label>
+                                        </div>
+                                        <input v-model="workflowF5aStructure.ending.word_ratio" type="text" placeholder="字数占比：如 15%，约400-500字" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                        <select v-model="workflowF5aStructure.ending.reveal" class="w-full text-sm border border-gray-300 rounded p-2 bg-gray-50 outline-none">
+                                            <option v-for="option in f5aRevealOptions" :key="'ending-reveal-' + option" :value="option">{{ option }}</option>
+                                        </select>
+                                        <input v-model="workflowF5aStructure.ending.foreshadowing" type="text" placeholder="伏笔/铺垫：若无填无" class="w-full text-sm border border-gray-300 rounded p-2 outline-none">
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div v-if="workflowProjectScript === 'f5c'" class="mb-3 space-y-3">
+                            <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-3">
+                                <div>
+                                    <label class="text-xs text-gray-500 block mb-1">改写模式</label>
+                                    <select v-model="f5cMode" class="w-full text-sm border border-gray-300 rounded p-2 bg-white outline-none">
+                                        <option value="prefix">保留开头续写</option>
+                                        <option value="fim">修改中间补写</option>
+                                    </select>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button @click="undoF5cSelection" class="px-3 py-1.5 text-xs rounded border border-gray-300 bg-white hover:bg-gray-100">撤回</button>
+                                    <button @click="clearF5cSelection" class="px-3 py-1.5 text-xs rounded border border-gray-300 bg-white hover:bg-gray-100">清空</button>
+                                </div>
+                                <p class="text-xs text-emerald-800 bg-white border border-emerald-100 rounded p-2">{{ f5cSelectionSummary }}</p>
+                                <button @click="workflowF5cOpen = !workflowF5cOpen" class="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-gray-600 bg-gray-50 border border-gray-200 rounded hover:bg-gray-100 transition-colors">
+                                    <span class="flex items-center gap-2"><i class="fa-solid fa-align-left text-gray-400"></i> 段落选择 ({{ f5cParagraphs.length }} 段)</span>
+                                    <i :class="workflowF5cOpen ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'"></i>
+                                </button>
+                                <div v-if="workflowF5cOpen" class="space-y-2 max-h-72 overflow-y-auto pr-1">
+                                    <button
+                                        v-for="(paragraph, index) in f5cParagraphs"
+                                        :key="'f5c-paragraph-' + index"
+                                        @click="handleF5cParagraphClick(index)"
+                                        @dblclick.prevent="handleF5cParagraphDoubleClick(index)"
+                                        type="button"
+                                        class="w-full text-left rounded border p-3 transition-colors"
+                                        :class="{
+                                            'border-amber-300 bg-amber-50': getF5cParagraphStatus(index) === 'modify',
+                                            'border-blue-300 bg-blue-50': getF5cParagraphStatus(index) === 'draft',
+                                            'border-gray-200 bg-white hover:bg-gray-50': getF5cParagraphStatus(index) === 'keep'
+                                        }"
+                                    >
+                                        <div class="flex items-center justify-between mb-2">
+                                            <span class="text-xs font-semibold text-gray-600">第 {{ index + 1 }} 段</span>
+                                            <span class="text-[11px] px-2 py-0.5 rounded-full"
+                                                  :class="{
+                                                      'bg-amber-100 text-amber-700': getF5cParagraphStatus(index) === 'modify',
+                                                      'bg-blue-100 text-blue-700': getF5cParagraphStatus(index) === 'draft',
+                                                      'bg-gray-100 text-gray-600': getF5cParagraphStatus(index) === 'keep'
+                                                  }">
+                                                {{ getF5cParagraphStatus(index) === 'modify' ? '修改' : (getF5cParagraphStatus(index) === 'draft' ? '起点' : '保留') }}
+                                            </span>
+                                        </div>
+                                        <p class="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{{ paragraph }}</p>
+                                    </button>
+                                    <div v-if="!f5cParagraphs.length" class="text-xs text-gray-500 bg-white border border-dashed border-gray-300 rounded p-3">
+                                        当前章节暂无可编辑内容，请先在左侧工作台选择并加载章节正文。
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-if="f5cHasPreview" class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="text-sm font-bold text-slate-800">f5c 预览结果</h4>
+                                    <span v-if="f5cPromptPath" class="text-[11px] text-slate-500">提示词已保存</span>
+                                </div>
+                                <textarea :value="f5cPreviewContent" readonly class="w-full h-48 text-sm border border-slate-300 rounded p-2 bg-white outline-none resize-none"></textarea>
+                                <div class="flex flex-wrap gap-2">
+                                    <button @click="applyF5cOverwrite" class="px-3 py-1.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-700">覆盖当前章节</button>
+                                    <button @click="discardF5cPreview" class="px-3 py-1.5 text-xs rounded border border-gray-300 bg-white hover:bg-gray-100">舍弃</button>
+                                    <button @click="applyF5cCopy" class="px-3 py-1.5 text-xs rounded bg-emerald-600 text-white hover:bg-emerald-700">新建副本</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="['f5a', 'f5b', 'f5c'].includes(workflowProjectScript)" class="mb-3 space-y-2">
+                            <div class="flex items-center bg-purple-50 p-2 rounded border border-purple-100">
+                                <label class="flex items-center gap-2 text-xs font-bold text-purple-700 cursor-pointer">
+                                    <input type="checkbox" v-model="globalAutoMemory" class="accent-purple-600 w-4 h-4 cursor-pointer">
+                                    开启自动记忆构建 (生成大纲/正文前，自动执行 f4c 提取前文)
+                                </label>
+                            </div>
+                            <div class="flex items-center bg-blue-50 p-2 rounded border border-blue-100">
+                                <label class="flex items-center gap-2 text-xs font-bold text-blue-700 cursor-pointer">
+                                    <input type="checkbox" v-model="globalAutoValidate" class="accent-blue-600 w-4 h-4 cursor-pointer">
+                                    开启全局自动校验（实验能力，任务完成后自动执行 f7 宽松校验）
+                                </label>
+                            </div>
+                            <div v-if="workflowProjectScript === 'f5b'" class="space-y-2">
+                                <div class="flex items-center bg-indigo-50 p-2 rounded border border-indigo-100">
+                                    <label class="flex items-center gap-2 text-xs font-bold text-indigo-700 cursor-pointer">
+                                        <input type="checkbox" v-model="injectF5bPromptToWorkspaceOnRun" class="accent-indigo-600 w-4 h-4 cursor-pointer">
+                                        执行脚本后把 f5b 提示词注入工作台输入框
+                                    </label>
+                                </div>
+                                <div v-if="injectF5bPromptToWorkspaceOnRun" class="flex items-center bg-amber-50 p-2 rounded border border-amber-100 ml-3">
+                                    <label class="flex items-center gap-2 text-xs font-bold text-amber-700 cursor-pointer">
+                                        <input type="checkbox" v-model="f5bPromptOnlyMode" class="accent-amber-600 w-4 h-4 cursor-pointer">
+                                        不生成小说
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button @click="runProjectScript" :disabled="!currentProject || f5cIsGenerating" class="w-full py-2 bg-green-50 hover:bg-green-100 text-green-700 disabled:opacity-50 text-sm font-medium rounded transition-colors border border-green-200">
+                            {{ workflowProjectScript === 'f5c' ? (f5cIsGenerating ? '正在生成预览...' : '生成改写预览') : '执行创作脚本' }}
+                        </button>
+                        
+                        <p class="text-xs text-red-500 mt-2 text-center"><i class="fa-solid fa-triangle-exclamation"></i> 警告：执行期间严禁使用外部编辑器打开或保存目标文件，以防锁死。</p>
+                    </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    <button @click="styleCardOpen = !styleCardOpen" class="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                        <h3 class="text-sm font-bold text-gray-800 flex items-center gap-2"><i class="fa-solid fa-microchip text-blue-500"></i> 文风与设定提取工作台 (text_style_imitation)</h3>
+                        <i :class="styleCardOpen ? 'fa-solid fa-chevron-up text-gray-400' : 'fa-solid fa-chevron-down text-gray-400'"></i>
+                    </button>
+                    <div v-if="styleCardOpen" class="px-5 pb-5">
+                    <div class="mb-4 p-3 bg-gray-50 border border-gray-200 rounded">
+                        <h4 class="text-xs font-bold text-gray-600 mb-2">上传新参考文本</h4>
+                        <div class="flex items-center gap-2">
+                            <input type="file" ref="fileInput" class="hidden" @change="handleFileUpload" accept=".txt,.md">
+                            <button @click="$refs.fileInput.click()" class="px-3 py-1.5 bg-white border border-gray-300 rounded text-xs hover:bg-gray-100 transition-colors shadow-sm text-gray-700">
+                                <i class="fa-solid fa-file-arrow-up mr-1"></i> 选择文件
+                            </button>
+                            <span class="text-xs text-gray-500 truncate flex-1">{{ uploadFileName || '尚未选择文件...' }}</span>
+                            <button v-if="uploadFileName" @click="submitUpload" class="px-3 py-1.5 bg-blue-500 text-white rounded text-xs font-medium hover:bg-blue-600 transition-colors shadow-sm">
+                                开始上传
+                            </button>
+                        </div>
+                        <p class="text-xs text-red-500 mt-2"><i class="fa-solid fa-circle-exclamation"></i> 提示：为保证向量化内存安全，建议单文件不超过50MB。</p>
+                    </div>
+
+                    <label class="text-xs text-gray-500 block mb-1">目标原著文件 (reference_novels)</label>
+                    <div class="flex gap-2 mb-3">
+                        <select v-model="selectedReference" class="flex-1 text-sm border border-gray-300 rounded p-2 bg-gray-50 outline-none">
+                            <option value="">-- 需选中参考源文件 --</option>
+                            <option v-for="ref in references" :value="ref">{{ ref }}</option>
+                        </select>
+                        <button @click="loadReferences" class="px-3 py-1 bg-white border border-gray-300 rounded text-gray-500 hover:text-blue-500 hover:bg-gray-100 transition-colors" title="刷新列表"><i class="fa-solid fa-arrows-rotate"></i></button>
+                    </div>
+
+                    <div class="mb-3 border-b border-gray-100 pb-3">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-xs text-gray-500 block">运行模式</label>
+                            <label class="flex items-center gap-1 text-xs cursor-pointer bg-red-50 text-red-600 px-2 py-1 rounded border border-red-100 transition-colors hover:bg-red-100" title="勾选后将无视本地已有文件，强行呼叫大模型重写并消耗Token">
+                                <input type="checkbox" v-model="forceOverwrite" class="accent-red-600 cursor-pointer">
+                                <i class="fa-solid fa-triangle-exclamation"></i> 强制覆盖重写 (无视缓存)
+                            </label>
+                        </div>
+                        <div class="flex gap-4">
+                            <label class="flex items-center gap-1 text-sm cursor-pointer"><input type="radio" v-model="styleExtractMode" value="auto" class="text-blue-600 focus:ring-blue-500"> 一键生成 (全自动流水线)</label>
+                            <label class="flex items-center gap-1 text-sm cursor-pointer"><input type="radio" v-model="styleExtractMode" value="manual" class="text-blue-600 focus:ring-blue-500"> 手动选择 (单步执行)</label>
+                        </div>
+                    </div>
+
+                    <div v-if="styleExtractMode === 'manual'">
+                        <label class="text-xs text-gray-500 block mb-1">执行提取脚本</label>
+                        <select v-model="workflowStyleScript" class="w-full text-sm border border-gray-300 rounded p-2 mb-3 bg-gray-50 outline-none">
+                            <option value="f0">f0 - 全局基础RAG库初始化（前置必做）</option>
+                            <option value="f1a">f1a - 本地物理指标与TTR统计</option>
+                            <option value="f1b">f1b - 大模型深层文风提取</option>
+                            <option value="f2a">f2a - 本地高频词提取</option>
+                            <option value="f2b">f2b - 大模型词汇清洗分类</option>
+                            <option value="f3a">f3a - 专属词库提取</option>
+                            <option value="f3b">f3b - 世界观整理</option>
+                            <option value="f3c">f3c - 角色卡提取</option>
+                            <option value="f4b">f4b - 剧情动态压缩建库</option>
+                        </select>
+
+                    <div v-if="workflowStyleScript === 'f3c'" class="mb-3">
+                        <label class="text-xs text-gray-500 block mb-1">提取目标 (将作为最终执行参数)：</label>
+                        <div class="space-y-2">
+                            <div class="flex gap-2">
+                                <input type="text" v-model="workflowCharName" placeholder="请点击右侧获取名单，或在此手动输入" class="flex-1 text-sm border border-gray-300 rounded p-2 outline-none bg-white">
+                                <button @click="loadCharacterSuggestions" class="px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded text-xs font-bold hover:bg-blue-100 transition-colors shadow-sm whitespace-nowrap">
+                                    <i class="fa-solid fa-users-viewfinder mr-1"></i> 获取推荐名单
+                                </button>
+                            </div>
+
+                            <div v-if="showCharSelector" class="p-3 bg-white border border-blue-100 rounded shadow-inner space-y-4">
+                                <div v-if="isLoadingChars" class="text-xs text-blue-500 flex items-center gap-2">
+                                    <i class="fa-solid fa-spinner fa-spin"></i>  正在解析世界观设定与全书词频数据...
+                                </div>
+                                
+                                <div v-else>
+                                    <div class="mb-4">
+                                        <h4 class="text-xs font-bold text-gray-700 mb-2 border-b pb-1 border-gray-100 flex justify-between">
+                                            <span>推荐角色 (来自 f3b 设定)</span>
+                                        </h4>
+                                        <div v-if="recommendedChars.length === 0" class="text-xs text-gray-400 italic">未在设定中识别到角色。</div>
+                                        <div class="flex flex-wrap gap-2">
+                                            <div v-for="(char, idx) in recommendedChars" :key="idx" class="flex items-center text-xs bg-blue-50 border border-blue-200 rounded overflow-hidden shadow-sm">
+                                                <label class="flex items-center px-2 py-1.5 cursor-pointer hover:bg-blue-100 transition-colors">
+                                                    <input type="checkbox" v-model="char.selected" class="mr-1.5 accent-blue-600">
+                                                    <span v-if="!char.editing" class="font-medium text-blue-800">{{ char.name }} <span v-if="char.aliases" class="text-gray-500 font-normal">({{ char.aliases }})</span></span>
+                                                </label>
+                                                
+                                                <div v-if="char.editing" class="flex items-center px-1 bg-white border-l border-blue-200 py-1">
+                                                    <input type="text" v-model="char.name" class="w-14 px-1 border-b border-gray-300 outline-none text-xs" placeholder="名字">
+                                                    <input type="text" v-model="char.aliases" class="w-16 px-1 border-b border-gray-300 outline-none text-xs ml-1" placeholder="别名/身份">
+                                                    <button @click="char.editing = false" class="text-green-600 hover:text-green-800 ml-2" title="确定"><i class="fa-solid fa-check"></i></button>
+                                                </div>
+                                                
+                                                <div v-else class="flex items-center border-l border-blue-200 bg-white">
+                                                    <button @click="char.editing = true" class="px-2 py-1.5 text-blue-500 hover:bg-blue-100 transition-colors" title="修改"><i class="fa-solid fa-pen"></i></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-4">
+                                        <h4 class="text-xs font-bold text-gray-700 mb-2 border-b pb-1 border-gray-100">备选添加 (按全书词频排序)</h4>
+                                        <div v-if="freqChars.length === 0" class="text-xs text-gray-400 italic">暂无词频数据，请先运行 f2a。</div>
+                                        <div class="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1 bg-gray-50 rounded border border-gray-100">
+                                            <label v-for="(char, idx) in freqChars" :key="'f'+idx" 
+                                                :class="['text-xs px-2 py-1 rounded border cursor-pointer transition-colors shadow-sm', char.selected ? 'bg-green-50 border-green-400 text-green-800 font-bold' : 'bg-white border-gray-200 text-gray-600 hover:bg-blue-50']">
+                                                <input type="checkbox" v-model="char.selected" class="hidden">
+                                                <i v-if="char.selected" class="fa-solid fa-plus mr-1"></i>{{ char.name }} <span class="text-gray-400 scale-90 inline-block font-normal">({{ char.freq }})</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h4 class="text-xs font-bold text-gray-700 mb-2 border-b pb-1 border-gray-100">自定义补充</h4>
+                                        <input type="text" v-model="customCharInput" placeholder="在此输入其余漏掉的角色，例如：小医仙(女主), 海波东" class="w-full text-xs border border-gray-300 rounded p-2 outline-none focus:ring-1 focus:ring-blue-500 shadow-sm">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    </div>
+
+                    <div v-if="styleExtractMode === 'auto'" class="p-3 bg-blue-50 border border-blue-200 rounded mb-3">
+                        <p class="text-xs text-gray-600 mb-2 font-medium"><i class="fa-solid fa-wand-magic-sparkles text-blue-500 mr-1"></i> 将依次执行提取流程</p>
+                        
+                        <div class="mb-3">
+                            <label class="text-xs text-gray-500 block mb-1">流水线目标类型</label>
+                            <div class="flex gap-4">
+                                <label class="flex items-center gap-1 text-sm cursor-pointer"><input type="radio" v-model="autoPipelineType" value="fanfic" :disabled="isAutoRunning"> 同人 (全量提取文风与设定)</label>
+                                <label class="flex items-center gap-1 text-sm cursor-pointer"><input type="radio" v-model="autoPipelineType" value="imitation" :disabled="isAutoRunning"> 模仿 (仅提取基础文风，跳过f3/f4)</label>
+                            </div>
+                        </div>
+
+                        <div v-if="autoPipelineType === 'fanfic'">
+                            <label class="text-xs text-gray-500 block mb-1">核心角色名列表 (用于自动生成角色卡，逗号分隔，可留空跳过)</label>
+                            <input type="text" v-model="autoStyleCharNames" :disabled="isAutoRunning" placeholder="例如：角色A, 角色B, 角色C" class="w-full text-sm border border-gray-300 rounded p-2 focus:ring-1 focus:ring-blue-500 outline-none mb-2 bg-white">
+                        </div>
+                        
+                        <div v-if="isAutoRunning" class="mt-2 p-2 bg-white rounded border border-blue-100 flex items-center gap-2 text-sm text-blue-700 font-bold shadow-inner">
+                            <i class="fa-solid fa-circle-notch fa-spin"></i>
+                            <span>正在执行: {{ autoRunProgress }}</span>
+                        </div>
+
+                        <button @click="runStyleScriptAuto" :disabled="!selectedReference || isAutoRunning" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 text-sm font-bold rounded shadow-sm transition-colors mt-2">
+                            <span v-if="!isAutoRunning"><i class="fa-solid fa-play mr-1"></i> 一键执行全自动流水线</span>
+                            <span v-else><i class="fa-solid fa-spinner fa-spin mr-1"></i> 流水线执行中...</span>
+                        </button>
+                        
+                        <p class="text-xs text-red-500 mt-2 text-center"><i class="fa-solid fa-triangle-exclamation"></i> 警告：执行期间严禁使用外部编辑器打开或保存目标文件，以防锁死。</p>
+
+                        <div v-if="isAutoPaused" class="mt-4 p-4 bg-yellow-50 border border-yellow-300 rounded-lg shadow-sm">
+                            <h4 class="text-sm font-bold text-yellow-800 mb-2"><i class="fa-solid fa-hand"></i> 步骤暂停：请确认需提取的角色</h4>
+                            <p class="text-xs text-yellow-700 mb-3">前置设定(f0-f3b)已提取完成。请点击获取角色名单并勾选，确认后将继续生成角色卡。</p>
+                            
+                            <div class="space-y-3">
+                                <div class="flex gap-2">
+                                    <input type="text" v-model="workflowCharName" placeholder="请点击右侧获取名单，或在此手动输入" class="flex-1 text-sm border border-yellow-400 rounded p-2 outline-none bg-white font-bold text-blue-700">
+                                    <button @click="loadCharacterSuggestions" class="px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded text-xs font-bold hover:bg-blue-100 transition-colors shadow-sm whitespace-nowrap">
+                                        <i class="fa-solid fa-users-viewfinder mr-1"></i> 获取推荐名单
+                                    </button>
+                                </div>
+                                
+                                <div v-if="isLoadingChars" class="text-xs text-yellow-600 mb-2 flex items-center gap-2">
+                                    <i class="fa-solid fa-spinner fa-spin"></i> 正在读取刚生成的设定与词频...
+                                </div>
+                                
+                                <div v-else-if="recommendedChars.length > 0 || freqChars.length > 0" class="space-y-4 bg-white p-3 rounded border border-yellow-200 mb-3 max-h-48 overflow-y-auto">
+                                    <div>
+                                        <span class="text-xs font-bold text-gray-700 mb-2 block border-b pb-1 border-gray-100">推荐角色 (来自 f3b 设定)</span>
+                                        <div class="flex flex-wrap gap-2">
+                                            <label v-for="(char, idx) in recommendedChars" :key="'ar'+idx" class="flex items-center text-xs bg-blue-50 border border-blue-200 rounded px-2 py-1.5 cursor-pointer hover:bg-blue-100 shadow-sm transition-colors">
+                                                <input type="checkbox" v-model="char.selected" class="mr-1.5 accent-blue-600">
+                                                <span class="font-medium text-blue-800">{{ char.name }} <span class="text-gray-500 font-normal ml-1">({{ char.aliases || '未知' }})</span></span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span class="text-xs font-bold text-gray-700 mb-2 block border-b pb-1 border-gray-100">高频词备选 (根据 f2a 全书词汇倒序)</span>
+                                        <div class="flex flex-wrap gap-1.5">
+                                            <label v-for="(char, idx) in freqChars" :key="'af'+idx" class="flex items-center text-xs bg-gray-50 border border-gray-200 rounded px-2 py-1 cursor-pointer hover:bg-gray-100 transition-colors">
+                                                <input type="checkbox" v-model="char.selected" class="mr-1.5 accent-gray-600">
+                                                <span class="text-gray-700">{{ char.name }}</span> <span class="text-gray-400 scale-90 ml-1">({{ char.freq }})</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button @click="continueAutoPipeline" class="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-bold rounded shadow-md transition-colors flex justify-center items-center gap-2">
+                                    确认名单，继续执行流水线 <i class="fa-solid fa-forward-step"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="styleExtractMode === 'auto' || ['f1b', 'f2b', 'f3a', 'f3b', 'f3c'].includes(workflowStyleScript)" class="mb-3">
+                        <label class="text-xs text-gray-500 block mb-1">选择推理模型</label>
+                        <select v-model="workflowStyleModel" :disabled="isAutoRunning" class="w-full text-sm border border-gray-300 rounded p-2 bg-gray-50 outline-none">
+                            <option value="deepseek-v4-flash">DeepSeek V4-Flash</option>
+                            <option value="deepseek-v4-pro">DeepSeek V4-Pro</option>
+                        </select>
+                        <div class="mt-2 flex items-center justify-between gap-2 text-xs text-gray-500">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" v-model="workflowStyleThinking" :disabled="isAutoRunning" class="rounded text-blue-600 focus:ring-blue-500">
+                                <span>思考</span>
+                            </label>
+                            <select v-if="workflowStyleThinking" v-model="workflowStyleReasoningEffort" :disabled="isAutoRunning" class="text-xs border border-gray-300 rounded px-2 py-1 bg-white outline-none">
+                                <option value="high">high</option>
+                                <option value="max">max</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button v-if="styleExtractMode === 'manual'" @click="runStyleScript" :disabled="!selectedReference" class="w-full py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 disabled:opacity-50 text-sm font-medium rounded transition-colors border border-blue-200">
+                        执行提取脚本 (单步)
+                    </button>
+                    <p v-if="styleExtractMode === 'manual'" class="text-xs text-red-500 mt-2 text-center"><i class="fa-solid fa-triangle-exclamation"></i> 警告：执行期间严禁使用外部编辑器打开或保存目标文件，以防锁死。</p>
+                </div>
+                    </div>
+            </div>
+
+            <div v-if="activeTab === 'knowledge'" class="flex-1 flex flex-col p-4 overflow-hidden space-y-3">
+                <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200 shrink-0">
+                    <div class="flex items-center gap-2 mb-3">
+                        <label class="text-xs text-gray-500 w-16">目标项目:</label>
+                        <select v-model="kbProject" @change="fetchKbFilesList" class="flex-1 text-sm bg-gray-50 border border-gray-200 rounded p-1.5 outline-none">
+                            <option value="">-- 选择项目 --</option>
+                            <optgroup label="小说项目 (novel_projects)">
+                                <option v-for="p in projects" :value="p">{{ p }}</option>
+                            </optgroup>
+                            <optgroup label="风格模仿项目 (text_style_imitation)">
+                                <option v-for="s in availableStyles" :value="'style@@' + s">{{ s }}</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 mb-3">
+                        <label class="text-xs text-gray-500 w-16">类型:</label>
+                        <div class="flex gap-4">
+                            <label class="flex items-center gap-1 text-sm"><input type="radio" v-model="kbType" value="settings" @change="fetchKbFilesList"> 基础设定</label>
+                            <label class="flex items-center gap-1 text-sm"><input type="radio" v-model="kbType" value="characters" @change="fetchKbFilesList"> 角色卡片</label>
+                            <label class="flex items-center gap-1 text-sm"><input type="radio" v-model="kbType" value="outlines" @change="fetchKbFilesList"> 章节大纲</label>
+                            <label class="flex items-center gap-1 text-sm"><input type="radio" v-model="kbType" value="prompts" @change="fetchKbFilesList"> Prompt指令</label>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs text-gray-500 w-16">选择文件:</label>
+                        <select v-model="kbSelectedFile" @change="fetchKbContent" class="flex-1 text-sm bg-gray-50 border border-gray-200 rounded p-1.5 outline-none" :disabled="!kbProject">
+                            <option value="">-- 请选择需修改的数据 --</option>
+                            <option v-for="item in kbItems" :value="item.value">{{ item.label }}</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col overflow-hidden relative">
+                    <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs text-gray-400 flex justify-between items-center">
+                        <span>{{ kbType === 'characters' ? '角色卡编辑器' : (kbType === 'outlines' ? '大纲编辑器' : '设定表单编辑器') }} (Markdown支持)</span>
+                        <div class="flex items-center gap-3">
+                            <button @click="injectKnowledgeToWorkspace" :disabled="!kbSelectedFile || !kbContent.trim()" class="text-indigo-600 hover:text-indigo-800 disabled:opacity-50">
+                                <i class="fa-solid fa-arrow-up-right-from-square"></i> 注入工作台
+                            </button>
+                            <button @click="saveKbContent" :disabled="!kbSelectedFile" class="text-blue-600 hover:text-blue-800 disabled:opacity-50">
+                                <i class="fa-solid fa-save"></i> 覆写落盘
+                            </button>
+                        </div>
+                    </div>
+                    <textarea v-model="kbContent" class="flex-1 w-full p-4 resize-none outline-none text-gray-700 bg-transparent font-mono" :style="{ fontSize: config.fontSize + 'px' }" placeholder="请选择设定文件进行可视化修改..."></textarea>
+                </div>
+            </div>
+        </div>
+    </div> 
+
+    <div v-if="showSettingsDrawer" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 transition-opacity" @click.self="showSettingsDrawer = false">
+        <div class="bg-white p-6 rounded-xl shadow-2xl w-[380px] border border-gray-100 max-h-[85vh] overflow-y-auto">
+            <h3 class="text-lg font-bold text-gray-800 mb-5 flex items-center justify-between">
+                <span class="flex items-center gap-2"><i class="fa-solid fa-gear text-blue-500"></i> 设置</span>
+                <button @click="showSettingsDrawer = false" class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+            </h3>
+
+            <div class="mb-5">
+                <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3"><i class="fa-solid fa-display mr-1"></i> 布局与显示</h4>
+                <label class="flex items-center space-x-2 cursor-pointer mb-3">
+                    <input type="checkbox" v-model="config.showWorkspace" class="rounded text-blue-600 focus:ring-blue-500">
+                    <span class="text-sm font-medium">开启小说工作台</span>
+                </label>
+                <div v-if="config.showWorkspace" class="mb-3">
+                    <label class="text-xs text-gray-500 block mb-1">中右区域比例 ({{ config.layoutRatio }}%)</label>
+                    <input type="range" v-model="config.layoutRatio" min="20" max="80" class="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-500 block mb-1">全局字号 ({{ config.fontSize }}px)</label>
+                    <input type="range" v-model="config.fontSize" min="12" max="18" class="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                </div>
+                <div class="mt-3">
+                    <label class="text-xs text-gray-500 block mb-1">输入框基础高度 ({{ config.composerHeight }}px)</label>
+                    <input type="range" v-model="config.composerHeight" min="60" max="180" class="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                </div>
+                <div class="mt-3">
+                    <button @click="resetDisplayDefaults" class="w-full py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors">
+                        <i class="fa-solid fa-rotate-left mr-1"></i>恢复默认设置
+                    </button>
+                </div>
+            </div>
+
+            <hr class="border-gray-100 mb-5">
+
+            <div>
+                <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3"><i class="fa-solid fa-shield-halved mr-1"></i> API与防护</h4>
+                <div class="flex items-center justify-between text-xs text-gray-500 mb-2">
+                    <span>全局 API Key</span>
+                    <div class="flex items-center gap-4">
+                        <label class="flex items-center gap-1 cursor-pointer select-none">
+                            <input type="checkbox" v-model="showApiKey" class="rounded text-blue-600 focus:ring-blue-500">
+                            <span>显示</span>
+                        </label>
+                        <label class="flex items-center gap-1 cursor-pointer select-none">
+                            <input type="checkbox" v-model="config.useDefaultApiConfig" class="rounded text-blue-600 focus:ring-blue-500">
+                            <span>默认</span>
+                        </label>
+                    </div>
+                </div>
+                <input :type="showApiKey ? 'text' : 'password'" v-model="config.apiKey" :disabled="config.useDefaultApiConfig" placeholder="DeepSeek API Key" autocomplete="off" class="w-full text-sm p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none mb-2 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed">
+                <textarea v-model="config.globalForbidden" placeholder="全局禁用词 (逗号分隔)" class="w-full text-sm p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 h-16 outline-none mb-2"></textarea>
+                
+                <div class="flex items-center justify-between mb-2">
+                    <label class="text-xs text-gray-500">自动重试次数</label>
+                    <input type="number" v-model.number="config.retryLimit" min="1" max="5" class="w-16 text-sm p-1 border border-gray-300 rounded text-center outline-none">
+                </div>
+                <div class="flex items-center justify-between mb-2">
+                    <label class="text-xs text-gray-500">敏感词容忍度 (次)</label>
+                    <input type="number" v-model.number="config.forbiddenTolerance" min="1" max="99" class="w-16 text-sm p-1 border border-gray-300 rounded text-center outline-none bg-red-50 text-red-700">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div v-if="showProjectModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 transition-opacity">
+        <div class="bg-white p-6 rounded-xl shadow-2xl w-96 border border-gray-100">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-book text-green-500"></i> 新建小说
+            </h3>
+
+            <div class="mb-4">
+                <div class="flex gap-4 mb-3 border-b border-gray-200 pb-2">
+                    <label class="flex items-center gap-1 text-sm cursor-pointer"><input type="radio" v-model="projectActionMode" value="create" class="text-green-600 focus:ring-green-500"> 创建新工程</label>
+                    <label class="flex items-center gap-1 text-sm cursor-pointer"><input type="radio" v-model="projectActionMode" value="overwrite" class="text-green-600 focus:ring-green-500"> 覆盖现有工程</label>
+                </div>
+
+                <div class="mb-2">
+                    <input v-if="projectActionMode === 'create'" type="text" v-model="newProjectName" placeholder="输入新小说书名..." @keydown.enter="createProject" class="w-full text-sm border border-gray-300 rounded-lg p-2 focus:ring-1 focus:ring-green-500 outline-none">
+                    <select v-if="projectActionMode === 'overwrite'" v-model="existingProjectSelect" class="w-full text-sm border border-gray-300 rounded-lg p-2 bg-white outline-none">
+                        <option value="">-- 选择需覆盖的小说 --</option>
+                        <option v-for="p in projects" :value="p">{{ p }}</option>
+                    </select>
+                </div>
+
+                <div class="flex gap-4 mb-2">
+                    <label class="flex items-center gap-1 text-sm"><input type="radio" v-model="newProjectBranch" value="原创"> 原创</label>
+                    <label class="flex items-center gap-1 text-sm"><input type="radio" v-model="newProjectBranch" value="同人"> 同人</label>
+                    <label class="flex items-center gap-1 text-sm"><input type="radio" v-model="newProjectBranch" value="默认"> 默认</label>
+                </div>
+
+                <div v-if="newProjectBranch !== '默认'">
+                    <label class="text-xs text-gray-500 block mb-1">参考风格</label>
+                    <select v-model="newProjectReferenceStyle" class="w-full text-sm border border-gray-300 rounded-lg p-2 bg-white outline-none">
+                        <option value="">-- 选择对应的 text_style_imitation 参考数据 --</option>
+                        <option v-for="style in availableStyles" :value="style">{{ style }}</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3">
+                <button @click="showProjectModal = false" class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">取消</button>
+                <button @click="createProject" :disabled="(projectActionMode === 'create' ? !newProjectName.trim() : !existingProjectSelect) || (newProjectBranch !== '默认' && !newProjectReferenceStyle)" class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors shadow-md disabled:opacity-50">
+                    {{ projectActionMode === 'create' ? '创建工程' : '覆盖工程' }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div v-if="showChapterModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 transition-opacity"> 
+        <div class="bg-white p-6 rounded-xl shadow-2xl w-96 border border-gray-100"> 
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"> 
+                <i class="fa-solid fa-file-circle-plus text-blue-500"></i> 新建章节 
+            </h3> 
+            
+            <div class="mb-4"> 
+                <label class="block text-sm font-bold text-gray-700 mb-1">章节序号 (第 N 章)</label> 
+                <div class="flex items-center gap-2"> 
+                    <span class="text-gray-500 font-medium">第</span> 
+                    <input type="number" v-model="newChapterNum" min="1" class="flex-1 border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 text-center font-bold text-blue-600"> 
+                    <span class="text-gray-500 font-medium">章</span> 
+                </div> 
+            </div> 
+            
+            <div class="mb-6"> 
+                <label class="block text-sm font-bold text-gray-700 mb-1">章节名 <span class="text-gray-400 font-normal text-xs">(选填，不影响代码逻辑)</span></label> 
+                <input type="text" v-model="newChapterTitle" placeholder="例如：大战黑水玄蛇" @keydown.enter="confirmCreateChapter" class="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"> 
+            </div> 
+            
+            <div class="flex justify-end gap-3"> 
+                <button @click="showChapterModal = false" class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">取消</button> 
+                <button @click="confirmCreateChapter" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-md">确认创建</button> 
+            </div> 
+        </div> 
+    </div> 
+</div>
+
+<script type="module" src="/static/app.js?v=4.2"></script>
+</body>
+</html>

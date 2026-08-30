@@ -1,0 +1,29 @@
+PASS 本地服务可用
+PASS 工作台前端与服务文件存在
+PASS 同人新建要求参考文本
+PASS 创建后激活新项目
+PASS 章节锚点要求输入
+PASS 章节信息调用判别端点
+PASS 发送与下一步共用章节执行
+PASS 下一步共用章节执行
+PASS 每步完成卡含撤回
+PASS 每步完成卡含重试
+PASS 初始化从小说资料开始
+PASS 同人提取是五个实际步骤
+PASS 初始化资料可持续追加
+PASS 章节输入保存到独立文件
+PASS 章节步骤携带累积用户信息
+PASS 同人五项提取流程均已声明
+PASS 创建同人项目
+PASS 同人原著上传端点
+PASS 上传原著出现在项目树
+PASS 新建同人项目进入项目列表
+PASS 创建原创项目
+PASS 切换后两个项目均保留在列表
+PASS 删除临时项目
+PASS 删除后项目列表不再出现
+PASS 无模型完整流程验证
+PASS 模型判别小说资料（HTTP 200，响应：{"has_character": true, "has_synopsis": true, "summary": "\ufffd\ufffd\ufffd\ufffd\u03aa\ufffd\ufffd\ufffd\u03bb\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\u0136\ufffd\ufffd\u04f7\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\u58ec\ufffd\ufffd\ufffd\ufffd\ufffd\uac3d\ufffdi\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\u046a\ufffd\ufffd\ufffd\ufffd\ufffd\u06b4\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\u053c\ufffd\ufffd\ufffd\ufffd\ufffd\u0475\ufffd\u03a3\ufffd\ufffd\ufffd\ufffd", "tags": {"\ufffd\ufffd\ufffd": "\ufffd\ufffd\ufffd\ufffd/\ufffd\ufffd\ufffd\ufffd", "\ufffd\ufffd\ufffd\ufffd": "\u016e\u01b5", "\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd": "\ufffd\ufffd\u016e\ufffd\ufffd"}, "missing": []}）
+PASS 保存初始化原始输入
+PASS 模型初始化：compile_intro（HTTP 200，响应：{"task": "compile_intro", "ok": true, "outputs": ["\u05aa\u02b6\ufffd\ufffd\\\u0421\u02f5\ufffd\ufffd\ufffd.md"], "log": "{\"ok\": true, \"outputs\": [\"\u05aa\u02b6\ufffd\ufffd\\\\\u0421\u02f5\ufffd\ufffd\ufffd.md\"]}\r\n"}）
+FAIL AssertionError: 模型初始化：generate_worldview（HTTP 400，响应：{"error": "\u6d41\u7a0b\u811a\u672c\u6267\u884c\u5931\u8d25\uff08generate_worldview\uff09\uff1a{\"ok\": false, \"error\": \"\u05aa\u02b6\ufffd\ufffd\\\\\ufffd\ufffd\ufffd\ufffd\ufffd.md \u03b4\u0368\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\u0461\ufffd\ufffd\u6df6\ufffd\ufffd\ufffd\ufffd\u02bd\u0423\ufffd\u98fa\u0231\ufffd\u0679\u6da8\ufffd\ufffd\ufffd\u0763\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\u0763\ufffd\u0231\ufffd\u0679\u6da8\ufffd\ufffd\ufffd\u0763\ufffd\ufffd\ufffd\ufffd\ufffd/\ufffd\ufffd\ufffd\ufffd\"}"}）

@@ -1,0 +1,67 @@
+/* 自定义细长滚动条 */
+::-webkit-scrollbar { 
+    width: 6px; 
+    height: 6px; 
+}
+::-webkit-scrollbar-track { 
+    background: transparent; 
+}
+::-webkit-scrollbar-thumb { 
+    background: #cbd5e1; 
+    border-radius: 3px; 
+}
+::-webkit-scrollbar-thumb:hover { 
+    background: #94a3b8; 
+}
+
+/* 全局基础字体与字号缩放过渡效果 */
+body { 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
+    transition: font-size 0.3s; 
+}
+
+/* Markdown 渲染内容的基础排版 */
+.markdown-body p { 
+    margin-bottom: 0.75em; 
+}
+
+/* Markdown 多行代码块 (深色背景) */
+.markdown-body pre { 
+    background: #1e293b; 
+    color: #f8fafc; 
+    padding: 1em; 
+    border-radius: 0.5rem; 
+    overflow-x: auto; 
+    margin-bottom: 1em;
+}
+
+/* Markdown 行内代码 (浅色底红字) */
+.markdown-body code { 
+    font-family: monospace; 
+    background: #e2e8f0; 
+    padding: 0.2em 0.4em; 
+    border-radius: 0.25rem; 
+    font-size: 0.9em; 
+    color: #ef4444;
+}
+
+/* 重置多行代码块内部 code 标签的背景 */
+.markdown-body pre code { 
+    background: transparent; 
+    color: inherit; 
+    padding: 0; 
+}
+
+/* 核心功能：触发安全拦截时的敏感词高亮样式 (浅红底深红字) */
+.forbidden-highlight { 
+    background-color: #ffe6e6; 
+    color: #d8000c; 
+    font-weight: bold; 
+    padding: 2px 4px; 
+    border-radius: 4px; 
+}
+
+/* 聊天容器自动滚动的平滑过渡效果 */
+.chat-container { 
+    scroll-behavior: smooth; 
+}
