@@ -1,12 +1,12 @@
 /**
- * 临时对比脚本：用 InkFlow Slop 检测器扫描多个原著章节 + 白釉生成文本。
+ * 临时对比脚本：用 InkFlow Slop 检测器扫描多个原著章节 + 待比对的生成文本。
  */
 import fs from "node:fs";
 import { fullSlopScan, summarizeReport } from "../../src/services/checker/slop-detector";
 import type { SlopReport } from "../../src/services/checker/slop-rules";
 
 const SRC = "D:\\novel apk\\训练文本\\超凡都市407.txt";
-const GEN = "D:\\novel apk\\训练文本\\测试生成_白釉_第1章大婚_风格版_v3_扩写.txt";
+const GEN = "D:\\novel apk\\训练文本\\你的生成文本.txt";
 const OUT = "D:\\novel apk\\训练文本\\Inkflow文风检测_多章对比.txt";
 
 const src = fs.readFileSync(SRC, "utf-8");
@@ -73,7 +73,7 @@ function stats(nums: number[]) {
 const result = {
   engine: "InkFlow fullSlopScan（0-10，越高越干净）",
   generated: {
-    name: "白釉_第1章_风格版v3扩写",
+    name: "生成文本_风格版v3扩写",
     chars: gen.length,
     ...genSummary,
   },

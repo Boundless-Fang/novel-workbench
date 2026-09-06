@@ -1,13 +1,13 @@
 /**
  * 临时对比脚本：用 InkFlow 自己的 Slop 文风检测器，
- * 对《超凡都市407》第384章 与 白釉生成文本 分别打分。
+ * 对《超凡都市407》第384章 与 待比对的生成文本 分别打分。
  */
 import fs from "node:fs";
 import { fullSlopScan, summarizeReport } from "../../src/services/checker/slop-detector";
 import type { SlopReport } from "../../src/services/checker/slop-rules";
 
 const SRC = "D:\\novel apk\\训练文本\\超凡都市407.txt";
-const GEN = "D:\\novel apk\\训练文本\\测试生成_白釉_第1章大婚_风格版_v3_扩写.txt";
+const GEN = "D:\\novel apk\\训练文本\\你的生成文本.txt";
 const OUT = "D:\\novel apk\\训练文本\\Inkflow文风检测_原著384_vs_生成.txt";
 
 const src = fs.readFileSync(SRC, "utf-8");
@@ -49,7 +49,7 @@ function make(report: SlopReport) {
 const result = {
   engine: "InkFlow fullSlopScan (7层 Slop 检测, 0-10分, 越高越好)",
   original: { name: "超凡都市407_第384章", chars: chap.length, report: make(fullSlopScan(chap)) },
-  generated: { name: "白釉_第1章_风格版v3扩写", chars: gen.length, report: make(fullSlopScan(gen)) },
+  generated: { name: "生成文本_风格版v3扩写", chars: gen.length, report: make(fullSlopScan(gen)) },
 };
 
 fs.writeFileSync(OUT, JSON.stringify(result, null, 2), "utf-8");

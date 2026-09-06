@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face { font-family: 'HSans'; src: url('file:///D:/求职/作品集/素材/fonts/HarmonyOS-Sans-SC-Bold.ttf'); font-weight: 700; }
+  @font-face { font-family: 'MiSans'; src: url('file:///D:/求职/作品集/素材/fonts/MiSans-Regular.ttf'); font-weight: 400; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #888; font-family: 'MiSans', sans-serif; }
+  .card {
+    width: 1242px; height: 1656px; background: #F6F2E8; position: relative;
+    overflow: hidden; margin: 20px auto; color: #1F1F1F;
+  }
+  .footer { position: absolute; bottom: 44px; left: 72px; right: 72px; display: flex; justify-content: space-between; font-size: 26px; color: #9A927F; }
+  .pill-dark { display: inline-block; background: #20201E; color: #F6F2E8; border-radius: 999px; padding: 20px 44px; font-size: 34px; font-weight: 700; }
+  .green-bar { display: inline-block; width: 16px; height: 66px; background: #6D8B3F; border-radius: 8px; vertical-align: -6px; }
+  .h-title { font-family: 'HSans', sans-serif; font-size: 78px; font-weight: 700; letter-spacing: 2px; }
+  .h-sub { font-size: 32px; color: #8F8874; margin-top: 18px; }
+  .shot { border-radius: 18px; box-shadow: 0 24px 60px rgba(60,50,20,.18); object-fit: cover; object-position: left top; background: #fff; }
+  .cap { font-size: 31px; color: #7A7460; text-align: center; }
+  .cap b { color: #4A4436; font-weight: 400; }
+</style>
+</head>
+<body>
+
+<!-- ======================= 卡 1：封面 ======================= -->
+<div class="card" id="card1">
+  <div style="padding: 96px 72px 0;">
+    <span class="pill-dark">AI 写作工具 · 本地运行</span>
+    <div style="font-family:'HSans',sans-serif; font-size: 150px; font-weight: 700; letter-spacing: 8px; margin-top: 66px; line-height: 1;">文脉工作台</div>
+    <div style="font-size: 44px; letter-spacing: 14px; color: #9A927F; margin-top: 26px;">WENMAI WORKBENCH</div>
+    <div style="font-family:'HSans',sans-serif; font-size: 62px; font-weight: 700; line-height: 1.5; margin-top: 84px;">
+      把长篇小说生成，<br>拆成<span style="color:#6D8B3F; border-bottom: 8px solid #B9C894; padding-bottom: 2px;">可追溯</span>的每一步。
+    </div>
+    <div style="margin-top: 78px; display: flex; gap: 26px;">
+      <span style="border: 2px solid #C9C2AE; border-radius: 999px; padding: 18px 40px; font-size: 32px; color: #55503F;">左 · 项目导航</span>
+      <span style="border: 2px solid #6D8B3F; background: #E9EDD9; border-radius: 999px; padding: 18px 40px; font-size: 32px; color: #55702F;">中 · 流程工作台</span>
+      <span style="border: 2px solid #C9C2AE; border-radius: 999px; padding: 18px 40px; font-size: 32px; color: #55503F;">右 · 查看与编辑</span>
+    </div>
+  </div>
+  <img class="shot" src="file:///D:/求职/项目/wenmai-workbench/_shots/xhs/cover-app.png"
+       style="position:absolute; left: 84px; right: 84px; top: 986px; width: 1074px; height: 560px;">
+  <div class="cap" style="position:absolute; left:0; right:0; top: 1566px;">原创 / 同人项目 · 步骤化生成 · 校验与验收</div>
+  <div class="footer"><span>文脉工作台</span><span>1 / 7</span></div>
+</div>
+
+<!-- ======================= 卡 4：界面预览 · 流程 ======================= -->
+<div class="card" id="card4">
+  <div style="padding: 100px 72px 0;">
+    <span class="green-bar"></span><span class="h-title">界面预览 · 流程</span>
+    <div class="h-sub">锚点 → 配置 → 台词 → 提示词快照 → 正文</div>
+  </div>
+  <img class="shot" src="file:///D:/求职/项目/wenmai-workbench/_shots/xhs/anchor.png"
+       style="position:absolute; left: 96px; top: 320px; width: 1050px; height: 566px;">
+  <div class="cap" style="position:absolute; left:0; right:0; top: 916px;">章节流程：每一步产物<b>落盘</b>，随时回看与撤回</div>
+  <img class="shot" src="file:///D:/求职/项目/wenmai-workbench/_shots/xhs/new-project.png"
+       style="position:absolute; left: 96px; top: 1000px; width: 1050px; height: 530px;">
+  <div class="cap" style="position:absolute; left:0; right:0; top: 1552px;">新建小说：<b>原创 / 同人</b>两种类型，本地文件夹即项目</div>
+  <div class="footer"><span>文脉工作台</span><span>4 / 7</span></div>
+</div>
+
+<!-- ======================= 卡 5：界面预览 · 资产与校验 ======================= -->
+<div class="card" id="card5">
+  <div style="padding: 100px 72px 0;">
+    <span class="green-bar"></span><span class="h-title">界面预览 · 资产与校验</span>
+    <div class="h-sub">设定可检索，质量有验收</div>
+  </div>
+  <img class="shot" src="file:///D:/求职/项目/wenmai-workbench/_shots/xhs/worldview.png"
+       style="position:absolute; left: 96px; top: 320px; width: 1050px; height: 566px;">
+  <div class="cap" style="position:absolute; left:0; right:0; top: 916px;">知识库：世界观、角色卡、剧情集中管理，随取随用</div>
+  <img class="shot" src="file:///D:/求职/项目/wenmai-workbench/_shots/xhs/validate.png"
+       style="position:absolute; left: 96px; top: 1000px; width: 1050px; height: 530px;">
+  <div class="cap" style="position:absolute; left:0; right:0; top: 1552px;">校验报告：锚点落实 / 设定一致 / 剧情连贯 / 文风表达逐项通过</div>
+  <div class="footer"><span>文脉工作台</span><span>5 / 7</span></div>
+</div>
+
+</body>
+</html>

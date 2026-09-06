@@ -11,8 +11,8 @@
     python 验证工作台验收.py
     python 验证工作台验收.py --live-model
 
---live-model 会用本文件内的《逆鳞》测试资料真实调用已配置的模型，产生并
-删除两个“*-验收-逆鳞-<随机串>”临时项目。仅在需要验收真实 API、模型输出和
+--live-model 会用本文件内的《蜀山》测试资料真实调用已配置的模型，产生并
+删除两个“*-验收-蜀山-<随机串>”临时项目。仅在需要验收真实 API、模型输出和
 全流程产物时使用。
 
 尚未验收：校验“通过”后的资产增量更新。当前前端只有提示文案，后端尚无对应
@@ -40,19 +40,19 @@ APP = WEB / "app.js"
 SERVER = WEB / "server.mjs"
 BASE_URL = "http://127.0.0.1:4173"
 
-SOURCE_TEXT = """白釉：女主；狐族千金，当年逃婚，后为正道仙子，今为救子回妖族取真龙之血；假身份狐族流落孤女、少年侍女近卫
-敖玦：少年；妖皇血脉，试炼获胜者；称白釉“釉儿”；以本命逆鳞与白釉交易半份精血
-敖苍：妖皇（蛟族）
-敖曜：大皇子（嫡长子），发动政变
-谢玄珩：正道魁首，白釉丈夫；与白釉原定若少年不肯交血则强取，今日现身
-鼋戎：反叛大臣，大势已去后倒戈擒下谢玄珩将功赎罪
-归藏：妖皇忠直老臣，趁机劝降叛臣
+SOURCE_TEXT = """英琼：女主；前明忠良李宁之女，孝行感天，拜入峨眉仙师门下学剑
+李宁：英琼之父；前明忠良之后，携女避祸入蜀，与周淳结伴隐居
+周淳：侠士；李宁故友，同隐蜀中，后亦归入仙门
+赵燕儿：少年；别母从师，拜入峨眉门下
+周轻云：峨眉女弟子；奉命在辟邪村学道，兼司传讯
+法元：金身罗汉；慈云寺请来的异派凶僧，四处搬兵欲与峨眉斗剑
+朱梅：青城派长老；道法高深，与峨眉交好
 """
 
-INITIALIZATION = """女主白釉表面是闻名天下的正道仙子，实为当年逃婚的狐族千金。她嫁给正道魁首谢玄珩后，儿子被害留下隐疾，十六年未解；唯一续命希望是真龙之血，只有妖皇敖苍能赏赐。白釉回妖族途中救下遭暗杀的妖皇血脉少年敖玦，假扮他的狐族流落孤女侍女近卫。二人约定：白釉助他赢下妖皇试炼，事成取半份真龙精血；敖玦以本命逆鳞抵押。二人九死一生赢下试炼，妖皇要求二人成婚，大婚当天赐下真龙精血。
-角色：白釉是狐族千金、正道仙子、谢玄珩之妻、敖玦侍女近卫；敖玦是试炼获胜者、交易同盟；敖苍是蛟族妖皇；敖曜将发动政变；鼋戎会倒戈；归藏劝降叛臣。真龙精血是白釉救子关键，本命逆鳞仍在白釉手中，嫁衣是大婚当天所穿。"""
+INITIALIZATION = """前明忠良之后李宁携女英琼避祸入蜀，与侠士周淳结伴隐居。英琼孝行感天，机缘拜入峨眉仙师门下习剑；赵燕儿别母从师，周轻云在辟邪村学道兼司传讯。峨眉群仙广收少年弟子，与慈云寺凶僧一派冲突渐深：金身罗汉法元四处搬兵，扬言要与峨眉斗剑，正邪大战一触即发。
+角色：英琼是李宁之女、峨眉门下少年剑仙；周淳是李宁故友、侠士；赵燕儿与周轻云同属峨眉门下；法元是慈云寺请来的异派凶僧，正邪不两立；朱梅是青城派长老，与峨眉交好。"""
 
-CHAPTER_INPUT = """大婚当天，披着嫁衣的白釉陪敖玦领赏，妖皇敖苍赐下真龙精血。敖曜伙同大臣逼宫，白釉救下危在旦夕的敖玦；谢玄珩现身，明确要取敖苍之命。敖苍认定叛军勾结正道，与谢玄珩缠斗；归藏劝降，鼋戎在局势逆转时倒戈。白釉安置敖玦后苦战。敖玦喝下整份真龙精血，实力大增，击杀敖曜；谢玄珩逃走时被敖苍和鼋戎擒住。结尾白釉捏着敖玦的逆鳞，震惊他没有留下约定的半份精血，救子计划落空。"""
+CHAPTER_INPUT = """英琼辞别父亲李宁，随周淳入蜀山拜师，途中夜宿古庙，遇法元门下妖人拦路截杀试探；赵燕儿仗剑相助，二人合力击退妖人。周轻云奉命传讯：仙师已在山上等候，慈云寺之约渐近。法元现身冷笑立约，扬言斗剑之期已定。结尾英琼在庙后清泉边练剑，剑尖忽凝一道异光，周淳暗惊此女剑缘深厚。"""
 
 
 class Check:
@@ -124,9 +124,9 @@ def create_project(check: Check, kind: str, title: str) -> str:
 
 def upload_source(check: Check, project: str) -> None:
     content = base64.b64encode(SOURCE_TEXT.encode("utf-8")).decode("ascii")
-    status, payload = request("POST", "/api/upload", {"project": project, "name": "逆鳞原著.txt", "data": f"data:text/plain;base64,{content}"})
-    check.require(status == 201 and payload.get("path") == "原著/逆鳞原著.txt", "同人原著上传端点")
-    check.require("原著/逆鳞原著.txt" in flat_paths(project_tree(project)), "上传原著出现在项目树")
+    status, payload = request("POST", "/api/upload", {"project": project, "name": "蜀山原著.txt", "data": f"data:text/plain;base64,{content}"})
+    check.require(status == 201 and payload.get("path") == "原著/蜀山原著.txt", "同人原著上传端点")
+    check.require("原著/蜀山原著.txt" in flat_paths(project_tree(project)), "上传原著出现在项目树")
 
 
 def delete_project(check: Check, project: str) -> None:
@@ -141,42 +141,42 @@ def run_live_workflow(check: Check, project: str, fan: bool) -> None:
     def live_request(path: str, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         return request("POST", path, body, timeout_seconds=660)
 
-    status, result = live_request("/api/project-brief/assess", {"project": project, "content": "白釉为救隐疾儿子回妖族，与少年敖玦交易真龙精血，在大婚政变中面临约定破裂。"})
+    status, result = live_request("/api/project-brief/assess", {"project": project, "content": "前明忠良李宁携女英琼入蜀避祸，英琼拜入峨眉学剑，法元搬兵欲斗剑，正邪大战一触即发。"})
     check.require(status == 200 and not result.get("missing"), f"模型判别小说资料（HTTP {status}，响应：{json.dumps(result, ensure_ascii=True)}）")
     material = "# 初始化资料\n\n" + INITIALIZATION + "\n"
     status, _ = request("PUT", "/api/file", {"project": project, "path": "运行记录/初始化资料.md", "content": material})
     check.require(status == 200, "保存初始化原始输入")
     tasks: list[tuple[str, dict[str, Any]]] = []
     if fan:
-        tasks += [(name, {"source": "逆鳞原著.txt"}) for name in ("text_stats", "word_frequency", "style", "positive_vocabulary", "exclusive_vocabulary")]
+        tasks += [(name, {"source": "蜀山原著.txt"}) for name in ("text_stats", "word_frequency", "style", "positive_vocabulary", "exclusive_vocabulary")]
     tasks += [
         ("compile_intro", {"summary": result["summary"], "tags": result["tags"]}),
-        ("generate_worldview", {"genre": "东方玄幻", "premise": "白釉为救子回妖族寻真龙精血"}),
-        ("compile_style", {"tone": "紧张克制、古风玄幻"}),
-        ("generate_character", {"name": "白釉", "identity": "狐族千金、正道仙子"}),
-        ("generate_character", {"name": "敖玦", "identity": "妖皇血脉少年"}),
-        ("compile_relation", {"character_a": "白釉", "character_b": "敖玦", "relationship": "真龙精血交易同盟"}),
-        ("compile_plot", {"kind": "book", "protagonist": "白釉", "mainline": "救子取血与逆鳞交易"}),
-        ("compile_volume", {"volume": "第1卷：逆鳞", "protagonist": "白釉", "mainline": "妖皇试炼至大婚政变"}),
+        ("generate_worldview", {"genre": "古典仙侠", "premise": "峨眉门下少年学剑，正邪斗剑将起"}),
+        ("compile_style", {"tone": "还珠楼主式古典仙侠，文白相间，瑰丽奇绝"}),
+        ("generate_character", {"name": "英琼", "identity": "李宁之女、峨眉门下少年剑仙"}),
+        ("generate_character", {"name": "赵燕儿", "identity": "别母从师的峨眉少年"}),
+        ("compile_relation", {"character_a": "英琼", "character_b": "赵燕儿", "relationship": "同门师兄妹，古庙并肩退敌"}),
+        ("compile_plot", {"kind": "book", "protagonist": "英琼", "mainline": "拜师学剑与慈云寺斗剑之约"}),
+        ("compile_volume", {"volume": "第1卷：峨眉学剑", "protagonist": "英琼", "mainline": "避祸入蜀至慈云寺斗剑之约"}),
         ("compile_ledger", {"entries": []}),
     ]
     for task, payload in tasks:
         status, result = live_request("/api/workflow/run", {"task": task, "project": project, "inputMode": "structured", "inputComplete": True, "input": payload})
         check.require(status == 200 and result.get("outputs"), f"模型初始化：{task}（HTTP {status}，响应：{json.dumps(result, ensure_ascii=True)}）")
 
-    status, result = live_request("/api/chapter-brief/assess", {"project": project, "chapter": "第1章：逆鳞", "content": CHAPTER_INPUT})
+    status, result = live_request("/api/chapter-brief/assess", {"project": project, "chapter": "第1章：古庙惊变", "content": CHAPTER_INPUT})
     check.require(status == 200 and not result.get("missing"), "模型判别首章输入")
     chapter_tasks = [
-        ("compile_anchor", {"characters": result["characters"], "core_event": result["core_event"], "information_boundary": "白釉与谢玄珩原计划强取精血不可直接公开", "foreshadowing": "逆鳞仍握在白釉手中", "hook": "半份精血约定破裂"}),
-        ("compile_config", {"person": "第三人称", "information": ["政变", "真龙精血", "逆鳞交易"]}),
-        ("compile_dialogue", {"dialogues": [{"character": "敖玦", "line": "釉儿，别过来。"}]}),
-        ("compile_snapshot", {"characters": ["白釉", "敖玦", "敖苍", "敖曜", "谢玄珩"], "previous_ending": "大婚领赏，政变骤起。"}),
+        ("compile_anchor", {"characters": result["characters"], "core_event": result["core_event"], "information_boundary": "慈云寺斗剑的确切日期与峨眉布防不可让异派知晓", "foreshadowing": "英琼剑尖凝异光，暗示剑缘深厚", "hook": "斗剑之期已定，慈云寺之约在即"}),
+        ("compile_config", {"person": "第三人称", "information": ["古庙遇妖", "法元立约", "异光凝剑"]}),
+        ("compile_dialogue", {"dialogues": [{"character": "法元", "line": "慈云寺斗剑之期已定，叫你师门早作准备。"}]}),
+        ("compile_snapshot", {"characters": ["英琼", "李宁", "周淳", "赵燕儿", "法元"], "previous_ending": "古庙夜宿，妖人败退，周淳暗自戒备。"}),
         ("generate_prose", {}),
         ("validate", {}),
         ("rewrite_prose", {"instruction": "保持全部既定事实，提升战斗节奏与结尾悬念。"}),
     ]
     for task, payload in chapter_tasks:
-        status, response = live_request("/api/workflow/run", {"task": task, "project": project, "inputMode": "structured", "inputComplete": True, "input": {"chapter": "第1章：逆鳞", **payload}})
+        status, response = live_request("/api/workflow/run", {"task": task, "project": project, "inputMode": "structured", "inputComplete": True, "input": {"chapter": "第1章：古庙惊变", **payload}})
         check.require(status == 200 and response.get("outputs"), f"模型章节流程：{task}（HTTP {status}，响应：{json.dumps(response, ensure_ascii=True)}）")
 
 
@@ -187,8 +187,8 @@ def main() -> int:
     args = parser.parse_args()
     check = Check()
     suffix = uuid.uuid4().hex[:8]
-    fan = f"同人-验收-逆鳞-{suffix}"
-    original = f"原创-验收-逆鳞-{suffix}"
+    fan = f"同人-验收-蜀山-{suffix}"
+    original = f"原创-验收-蜀山-{suffix}"
     created: list[str] = []
     try:
         status, _ = request("GET", "/api/projects")
@@ -196,14 +196,14 @@ def main() -> int:
         check.require(SERVER.is_file() and APP.is_file(), "工作台前端与服务文件存在")
         verify_frontend_contract(check)
 
-        fan = create_project(check, "同人", f"验收-逆鳞-{suffix}")
+        fan = create_project(check, "同人", f"验收-蜀山-{suffix}")
         created.append(fan)
         upload_source(check, fan)
         status, listing = request("GET", "/api/projects")
         check.require(fan in listing["projects"], "新建同人项目进入项目列表")
 
         # 前端创建成功后会 activate(project.id)；这里用第二个项目验证列表切换所需的数据前提。
-        original = create_project(check, "原创", f"验收-逆鳞-{suffix}")
+        original = create_project(check, "原创", f"验收-蜀山-{suffix}")
         created.append(original)
         status, listing = request("GET", "/api/projects")
         check.require(fan in listing["projects"] and original in listing["projects"], "切换后两个项目均保留在列表")
