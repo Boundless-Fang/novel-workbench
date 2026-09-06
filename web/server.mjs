@@ -31,6 +31,8 @@ const workflowTasks = new Set(['compile_intro', 'compile_character_roster', 'gen
 // 纯本地拼装、不调用 LLM 的任务：无需配置 API 即可执行。
 const localOnlyTasks = new Set(['text_stats', 'word_frequency', 'compile_config', 'compile_snapshot']);
 const workflowRuns = new Map();
+// 按项目互斥：同一项目同时只允许一个流程任务（防多标签页并发重复生成）。
+const projectRuns = new Map();
 const runFile = promisify(execFile);
 const types = { '.css':'text/css; charset=utf-8', '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8' };
 const textExtensions = new Set(['.md', '.txt', '.json', '.jsonl', '.yaml', '.yml']);
@@ -107,7 +109,6 @@ const server = createServer(async (request, response) => {
     if (url.pathname === '/api/chapter' && request.method === 'DELETE') { const project=url.searchParams.get('project'), prosePath=url.searchParams.get('prosePath'), chapter=chapterFiles(project, prosePath); if(!existsSync(chapter.proseFile) || !statSync(chapter.proseFile).isFile()) return send(response,404,{error:'章节正文不存在'}); rmSync(chapter.proseFile); const removed=[]; for(const dir of chapter.promptDirs) if(existsSync(dir) && statSync(dir).isDirectory()){rmSync(dir,{recursive:true,force:true});removed.push(relative(projectPath(project),dir).replaceAll('\\','/'));} return send(response,200,{deleted:chapter.path,promptDirs:removed}); }
     if (url.pathname === '/api/chapter' && request.method === 'PATCH') { const body=await readBody(request), chapter=chapterFiles(body.project, body.prosePath), next=safeSegment(String(body.name||'').replace(/\.txt$/i,''),'章节名称'), nextPath=`${chapter.path.slice(0,chapter.path.lastIndexOf('/')+1)}${next}.txt`, nextFile=projectPath(body.project,nextPath); if(!existsSync(chapter.proseFile) || !statSync(chapter.proseFile).isFile()) return send(response,404,{error:'章节正文不存在'}); if(existsSync(nextFile)) return send(response,409,{error:'同名章节已存在'}); renameSync(chapter.proseFile,nextFile); const moved=[]; for(const dir of chapter.promptDirs){if(!existsSync(dir)||!statSync(dir).isDirectory())continue;const target=resolve(dir,'..',next);if(existsSync(target)) throw new Error('同名章节提示词目录已存在');renameSync(dir,target);moved.push(relative(projectPath(body.project),target).replaceAll('\\','/'));} return send(response,200,{path:nextPath,promptDirs:moved}); }
     if (url.pathname === '/api/upload' && request.method === 'POST') { const body = await readBody(request); const name = safeSegment(String(body.name || ''), '文件名'); if (!['.txt','.md'].includes(extname(name).toLowerCase())) throw new Error('原著仅支持 .txt 或 .md 文件'); const destination = projectPath(body.project, `原著/${name}`); writeFileSync(destination, decodeUpload(body.data)); return send(response, 201, { path:`原著/${name}` }); }
-    if (url.pathname === '/api/migrate/first-volume' && request.method === 'POST') { const body = await readBody(request), base = projectPath(body.project), volume = safeSegment(String(body.volume || '第 1 卷'), '卷名'), prose = join(base, '正文'), prompts = join(base, '提示词'), proseVolume = join(prose, volume), promptVolume = join(prompts, volume); mkdirSync(proseVolume, { recursive:true }); mkdirSync(promptVolume, { recursive:true }); const moved=[]; for(const entry of readdirSync(prose,{withFileTypes:true}).filter(entry=>entry.isFile()&&extname(entry.name).toLowerCase()==='.txt')){ renameSync(join(prose,entry.name),join(proseVolume,entry.name)); moved.push(`正文/${volume}/${entry.name}`); } for(const entry of readdirSync(prompts,{withFileTypes:true}).filter(entry=>entry.isDirectory()&&entry.name!==volume)){ renameSync(join(prompts,entry.name),join(promptVolume,entry.name)); moved.push(`提示词/${volume}/${entry.name}`); } return send(response,200,{volume,moved}); }
     if (url.pathname === '/api/score' && request.method === 'POST') { const body = await readBody(request), requested = safePath(body.file), prosePath = requested.includes('/') ? requested : `正文/${safeSegment(requested, '正文文件')}`, proseFile = projectPath(body.project, prosePath), lexiconFile = projectPath(body.project, '词汇库/禁用词库.md'); if (!prosePath.startsWith('正文/')) throw new Error('评分文件必须位于正文目录'); if (!existsSync(projectScoreScript)) throw new Error('未找到项目评分器'); if (!existsSync(proseFile)) throw new Error('当前章节正文不存在'); const { stdout, stderr } = await runFile(process.execPath, ['--import', 'tsx', projectScoreScript, proseFile, lexiconFile], { cwd:scoringRoot, timeout:60_000, windowsHide:true }); return send(response, 200, { report:stdout || stderr || '评分脚本没有返回结果' }); }
     if (url.pathname === '/api/workflow/cancel' && request.method === 'POST') { const runId=String((await readBody(request)).runId || ''); const controller=workflowRuns.get(runId); if(!controller) return send(response,404,{error:'没有正在运行的任务'}); controller.abort(); return send(response,202,{cancelled:true}); }
     if (url.pathname === '/api/workflow/run' && request.method === 'POST') {
@@ -129,8 +130,10 @@ const server = createServer(async (request, response) => {
         if (inputMode === 'natural') { const [suffix, value] = spillArgs(tmpDir, naturalInput); args.push(`--natural_input${suffix}`, value); }
         else { const [suffix, value] = spillArgs(tmpDir, JSON.stringify(input)); args.push(`--input${suffix}`, value); if (inputComplete) args.push('--input_complete'); }
         const runId=/^[a-zA-Z0-9-]{8,80}$/.test(String(body.runId||'')) ? String(body.runId) : null;
-        if(runId && workflowRuns.has(runId)) throw new Error('该任务正在运行');
+        if(projectRuns.has(project)) throw new Error('该项目已有任务正在运行，请等待完成或点击“终止”');
         const controller=new AbortController(); if(runId)workflowRuns.set(runId,controller);
+        const projectLock=runId || controller;
+        projectRuns.set(project,projectLock);
         let stdout, stderr;
         try { ({ stdout, stderr } = await runFile(workflowPython || 'py', args, { cwd:workspaceRoot, timeout:1_800_000, windowsHide:true, maxBuffer:10_000_000, env:workflowEnvironment(cleanSettings(readSettings())), signal:controller.signal })); }
         catch (error) {
@@ -149,7 +152,7 @@ const server = createServer(async (request, response) => {
           if (usage) workflowError.usage=usage;
           throw workflowError;
         }
-        finally { if(runId)workflowRuns.delete(runId); }
+        finally { if(runId)workflowRuns.delete(runId); if(projectRuns.get(project)===projectLock) projectRuns.delete(project); }
         let result;
         try { result = JSON.parse(stdout.trim().split(/\r?\n/).at(-1)); } catch { throw new Error(`流程脚本没有返回有效的结果 JSON，可能执行异常中止：\n${(stdout || stderr || '').trim().slice(-2000) || '（无输出）'}`); }
         return send(response, 200, { task, ...result, log:stdout || stderr });
