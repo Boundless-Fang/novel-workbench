@@ -55,3 +55,6 @@ _ch21_raw.txt
 _shushan_*.py
 _shushan_*.txt
 工作流脚本/_accept_offline.txt
+
+# 运行产物（报告、对比结果、临时抽取）
+output/
