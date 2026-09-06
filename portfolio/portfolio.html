@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>小说工作台 · 产品案例</title>
+    <link rel="stylesheet" href="./portfolio.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top"><span></span>FANG / PORTFOLIO</a>
+      <a href="#materials">过程材料 ↓</a>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">CASE 02 · 本地 AI 长篇创作工作台</p>
+          <h1>把长篇小说生成，<br /><em>拆成可追溯的每一步。</em></h1>
+          <p class="lead">一个本地运行的 AI 创作辅助工具。它把小说资料、世界观、角色、剧情、章节正文和校验报告组织成同一个项目，而不是把创作留在一次性对话里。</p>
+          <dl class="facts">
+            <div><dt>角色</dt><dd>独立产品负责人</dd></div>
+            <div><dt>形态</dt><dd>本地 Web 工作台</dd></div>
+            <div><dt>交付</dt><dd>需求、工作流、前端、测试</dd></div>
+          </dl>
+        </div>
+        <figure class="workbench-shot">
+          <img src="./portfolio-assets/workbench-1920x1080.png" alt="小说工作台的项目、对话与文件三区界面" />
+          <figcaption>实机界面：初始化阶段中的原文统计、步骤推进与本地文件区</figcaption>
+        </figure>
+      </section>
+
+      <section class="section proposition">
+        <p class="eyebrow">产品设计</p>
+        <div class="split-heading">
+          <h2>让上下文、生成结果和检查记录<br />留在同一条创作链路里。</h2>
+          <p>核心不是“再做一个写作聊天框”，而是将长篇创作中反复丢失的设定、提示词和版本，变成可以查看、编辑、重试和复用的本地资产。</p>
+        </div>
+        <ol class="workflow">
+          <li><span>01</span><strong>建立项目资料</strong><p>原创或同人项目从简介、原著和默认资料开始。</p></li>
+          <li><span>02</span><strong>生成全局资产</strong><p>世界观、角色卡、关系卡、剧情书和信息账本按步骤沉淀。</p></li>
+          <li><span>03</span><strong>生成章节正文</strong><p>锚点、配置、台词和最终提示词快照共同组成章节上下文。</p></li>
+          <li><span>04</span><strong>校验并回看</strong><p>保留运行记录、用量和校验报告，支持撤回、重试和下一步。</p></li>
+        </ol>
+      </section>
+
+      <section class="section run-showcase">
+        <div class="run-layout">
+          <div class="run-copy">
+            <div class="section-head">
+              <p class="eyebrow">运行与交互</p>
+              <h2>一个界面，同时服务<br />创作、流程与文件。</h2>
+            </div>
+            <div class="interaction-grid">
+              <article><b>项目与章节</b><p>左侧管理多个本地小说项目、卷和章节，当前进度一眼可见。</p></article>
+              <article><b>步骤式对话</b><p>中间区域显示当前生成目标、输入、完成卡片和失败信息，并控制下一步。</p></article>
+              <article><b>文件即资产</b><p>右侧直接查看与编辑正文、提示词、知识库、词汇库、剧情和提取文件。</p></article>
+              <article><b>可恢复的过程</b><p>生成失败可查看模型、token 和耗时；支持撤回、重试及本地持久化。</p></article>
+            </div>
+          </div>
+          <a class="image-link" href="./portfolio-assets/workbench-1920x1080.png"><img src="./portfolio-assets/workbench-1920x1080.png" alt="小说工作台 1920×1080 实机截图" /></a>
+        </div>
+      </section>
+
+      <section class="section evidence" id="materials">
+        <div class="section-head">
+          <p class="eyebrow">在线体验与过程材料</p>
+          <h2>从需求，到可运行的<br />本地创作工具。</h2>
+        </div>
+        <div class="resource-list">
+          <a class="resource primary" href="http://127.0.0.1:4173" target="_blank" rel="noreferrer"><span>在线体验</span><b>打开本地工作台 ↗</b><small>需在本机运行服务</small></a>
+          <a class="resource" href="./docs/产品需求文档.md"><span>过程材料</span><b>查看 PRD →</b><small>产品定位、范围、完整流程与非目标</small></a>
+          <a class="resource" href="./docs/技术文档.md"><span>过程材料</span><b>查看技术文档 →</b><small>本地存储、工作流和实现说明</small></a>
+          <a class="resource" href="./README.md"><span>验证与测试</span><b>查看测试说明 →</b><small>单元、流程、服务端、前端与端到端验收</small></a>
+        </div>
+      </section>
+    </main>
+
+    <footer>小说工作台 · 本地 AI 长篇创作工具</footer>
+  </body>
+</html>

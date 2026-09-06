@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Node / TSX runtime dependency (moved into project for self-contained scoring)
+工作流脚本/文风评分/node_modules/
+
+# 同人提取引擎运行时生成目录
+工作流脚本/同人提取/novel_projects/
+工作流脚本/同人提取/text_style_imitation/
+工作流脚本/同人提取/reference_novels/
+工作流脚本/同人提取/dictionaries/
+工作流脚本/同人提取/text_testing_code/
+工作流脚本/同人提取/huggingface/
+
+# Local environment / secrets
+.env
+*.local
+
+# OS / editor
+.DS_Store
+Thumbs.db

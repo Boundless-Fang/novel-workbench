@@ -1,0 +1,45 @@
+{
+  "name": "inkflow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "InkFlow - 移动端 AI 写作助手 Android APK",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "cap:init": "npx cap init inkflow com.inkflow.app --web-dir=dist",
+    "cap:add:android": "npx cap add android",
+    "cap:sync": "npx cap sync android",
+    "cap:open": "npx cap open android",
+    "build:apk": "vite build && npx cap sync android && npx cap open android",
+    "typecheck": "tsc --noEmit",
+    "bench:score": "tsx scripts/bench/bench-score.ts"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/filesystem": "^6.0.0",
+    "@capacitor/keyboard": "^6.0.0",
+    "@capacitor/splash-screen": "^6.0.0",
+    "@capacitor/status-bar": "^6.0.0",
+    "idb-keyval": "^6.2.1",
+    "nanoid": "^5.0.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-markdown": "^8.0.7",
+    "react-router-dom": "^6.15.0",
+    "rehype-highlight": "^6.0.0",
+    "remark-gfm": "^3.0.1",
+    "zustand": "^4.3.8"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0",
+    "@types/react": "^18.2.70",
+    "@types/react-dom": "^18.2.7",
+    "@vitejs/plugin-react": "^4.2.0",
+    "eslint": "^8.49.0",
+    "tsx": "^4.23.11",
+    "typescript": "^5.2.2",
+    "vite": "^5.1.0"
+  }
+}
