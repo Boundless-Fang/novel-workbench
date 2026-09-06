@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
+from pathlib import Path
 
-from LLM配置 import _chat_completion, policy_for
+from LLM配置 import _chat_completion, get_llm_call_stats, parse_json_object, policy_for, set_llm_log_path
 from 共享 import project_dir
 
 
@@ -30,8 +30,8 @@ summary 只能压缩用户明确表达的内容，不得编造。missing 只能�
     payload = {"user_input": text, "tag_schema": TAG_SCHEMA, "project": project}
     raw = _chat_completion(policy_for("compile_intro", "prepare"), [{"role": "system", "content": system}, {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}])
     try:
-        value = json.loads(re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip(), flags=re.I))
-    except json.JSONDecodeError as error:
+        value = parse_json_object(raw)
+    except ValueError as error:
         raise ValueError("简介判别模型没有返回合法 JSON") from error
     if not isinstance(value, dict):
         raise ValueError("简介判别模型返回格式错误")
@@ -53,10 +53,15 @@ summary 只能压缩用户明确表达的内容，不得编造。missing 只能�
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", required=True)
-    parser.add_argument("--content", required=True)
+    parser.add_argument("--content", default="")
+    parser.add_argument("--content_file", default="", help="从文件读取小说相关信息（超长参数的 Windows 兜底）")
     args = parser.parse_args()
-    project_dir(args.project)  # 与其他工作流保持相同的项目名路径校验。
-    print(json.dumps(assess(args.project, args.content), ensure_ascii=False))
+    content = Path(args.content_file).read_text(encoding="utf-8") if args.content_file else args.content
+    base = project_dir(args.project)  # 与其他工作流保持相同的项目名路径校验。
+    # 判别调用与正式步骤一样写入执行记录：初始化阶段统一进 初始化.jsonl。
+    set_llm_log_path(str(base / "运行记录" / "执行记录" / "初始化.jsonl"))
+    result = assess(args.project, content)
+    print(json.dumps({**result, "usage": get_llm_call_stats()}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

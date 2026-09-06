@@ -6,8 +6,8 @@ import json
 import re
 from pathlib import Path
 
-from LLM配置 import _chat_completion, policy_for
-from 共享 import project_dir
+from LLM配置 import _chat_completion, get_llm_call_stats, parse_json_object, policy_for, set_llm_log_path
+from 共享 import log_segment, project_dir
 
 
 def known_characters(base: Path) -> list[str]:
@@ -36,8 +36,8 @@ characters 只保留用户明确提到、且名单中存在的角色；不要虚
     payload = {"chapter": chapter, "known_characters": names, "user_input": content}
     raw = _chat_completion(policy_for("compile_anchor", "prepare"), [{"role": "system", "content": system}, {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}])
     try:
-        result = json.loads(re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip(), flags=re.I))
-    except json.JSONDecodeError as error:
+        result = parse_json_object(raw)
+    except ValueError as error:
         raise ValueError("章节信息判别模型没有返回合法 JSON") from error
     if not isinstance(result, dict):
         raise ValueError("章节信息判别模型返回格式错误")
@@ -57,9 +57,15 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", required=True)
     parser.add_argument("--chapter", required=True)
-    parser.add_argument("--content", required=True)
+    parser.add_argument("--content", default="")
+    parser.add_argument("--content_file", default="", help="从文件读取本章信息（超长参数的 Windows 兜底）")
     args = parser.parse_args()
-    print(json.dumps(assess(project_dir(args.project), args.chapter, args.content.strip()), ensure_ascii=False))
+    content = Path(args.content_file).read_text(encoding="utf-8") if args.content_file else args.content
+    base = project_dir(args.project)
+    # 判别调用与正式步骤一样写入执行记录：放在本章的 jsonl，token 汇总才完整。
+    set_llm_log_path(str(base / "运行记录" / "执行记录" / f"章节-{log_segment(args.chapter)}.jsonl"))
+    result = assess(base, args.chapter, content.strip())
+    print(json.dumps({**result, "usage": get_llm_call_stats()}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

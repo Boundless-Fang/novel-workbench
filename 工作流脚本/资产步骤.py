@@ -48,10 +48,15 @@ def run(task: str, base: Path, data: dict[str, Any]) -> list[str]:
             data["kind"] = "volume"
         else:
             data.setdefault("kind", "book")
-        return _json(base, task, data, [worldview_path(base), base / "知识库" / "信息账本.md"])
+        sources = [worldview_path(base), base / "知识库" / "信息账本.md"]
+        if task == "compile_volume":
+            # PRD §7.2：剧情卷读取剧情书与知识库。
+            sources.append(base / "剧情" / "剧情书.md")
+        return _json(base, task, data, sources)
     if task == "compile_ledger":
         if "entries" in data and not isinstance(data.get("entries"), list): fail("entries 必须是数组")
-        return _json(base, task, data, [base / "剧情" / "剧情书.md"])
+        volume_dir = base / "剧情" / "剧情卷"
+        return _json(base, task, data, [base / "剧情" / "剧情书.md", *(sorted(volume_dir.glob("*.md")) if volume_dir.exists() else [])])
     if task == "generate_characters_batch":
         roster_path = base / "知识库" / "角色名单.json"
         if not roster_path.exists():

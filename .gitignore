@@ -40,3 +40,9 @@ web/node_modules/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# 本地工作区配置
+.zcode/
+
+# 本地测试用原著文本（版权材料，不应公开上传）
+桃之夭夭.txt

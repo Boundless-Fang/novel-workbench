@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 from LLM配置 import get_llm_call_stats, input_to_fields, set_llm_log_path
-from 共享 import fail, project_dir
+from 共享 import fail, log_segment, project_dir
 from 步骤定义 import STEP_INPUTS, TASK_MODULES
 import 资产步骤, 章节步骤, 提取步骤, 校验步骤, 世界观JSON, 结构化JSON
 
@@ -25,6 +25,9 @@ def _record_missing(base: Path, task: str, source: str, fields: dict[str, Any], 
 def resolve_input(base: Path, task: str, mode: str, structured: str, natural: str, complete: bool) -> dict[str, Any]:
     definition = STEP_INPUTS.get(task)
     if not definition: fail("未知流程任务：" + task)
+    if task in CHAPTER_TASKS and mode == "natural":
+        # 章节名不能交给模型从自然语言里猜：猜错会把产物写进错误的章节目录。
+        fail("章节任务不支持自然语言输入：请使用结构化输入并明确 chapter 字段")
     if task in DIRECT_GENERATION_TASKS:
         if mode == "natural":
             if not natural.strip(): fail("自然语言输入不能为空")
@@ -54,22 +57,30 @@ def resolve_input(base: Path, task: str, mode: str, structured: str, natural: st
     if missing: _record_missing(base, task, source, fields, missing); fail("当前步骤缺少字段：" + "、".join(missing))
     return fields
 CHAPTER_TASKS = {"compile_anchor", "compile_config", "compile_dialogue", "compile_snapshot", "generate_prose", "rewrite_prose", "validate"}
-def _safe_segment(value: Any) -> str:
-    import re
-    return re.sub(r'[\\/:*?"<>|]', '_', str(value or "").strip()) or "未知"
+
+def _apply_file_args(args: argparse.Namespace) -> None:
+    """--*_file 指定时从文件读取内容，替代超长的命令行参数（Windows 约 32K 上限）。"""
+    if getattr(args, "input_file", ""):
+        args.input = Path(args.input_file).read_text(encoding="utf-8")
+    if getattr(args, "natural_input_file", ""):
+        args.natural_input = Path(args.natural_input_file).read_text(encoding="utf-8")
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="小说工作台工作流引擎")
     parser.add_argument("--task", required=True); parser.add_argument("--project", required=True)
     parser.add_argument("--input_mode", default="structured", choices=["natural", "structured"]); parser.add_argument("--input", default="{}")
     parser.add_argument("--natural_input", default=""); parser.add_argument("--input_complete", action="store_true")
-    args = parser.parse_args(); base = project_dir(args.project)
+    parser.add_argument("--input_file", default="", help="从文件读取结构化输入（超长参数的 Windows 兜底）")
+    parser.add_argument("--natural_input_file", default="", help="从文件读取自然语言输入（超长参数的 Windows 兜底）")
+    args = parser.parse_args()
+    _apply_file_args(args)
+    base = project_dir(args.project)
     exec_dir = base / "运行记录" / "执行记录"
     if args.task in CHAPTER_TASKS:
         try: raw_input = json.loads(args.input or "{}") if args.input else {}
-        except json.JSONDecodeError: raw_input = {}
+        except json.JSONDecodeError as error: fail(f"--input 不是合法 JSON：{error.msg}")
         chapter = raw_input.get("chapter") or ""
-        log_name = f"章节-{_safe_segment(chapter)}.jsonl"
+        log_name = f"章节-{log_segment(chapter)}.jsonl"
     else:
         log_name = "初始化.jsonl"
     set_llm_log_path(str(exec_dir / log_name))

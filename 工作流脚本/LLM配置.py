@@ -158,14 +158,56 @@ def legacy_environment(policy: ModelPolicy) -> dict[str, str]:
     return env
 
 
-def _json_from_text(text: str) -> dict[str, Any]:
+def _first_json_object(text: str) -> dict[str, Any] | None:
+    """从混有说明文字的输出中提取第一个完整的 JSON 对象。"""
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(text):
+        if char != "{":
+            continue
+        try:
+            candidate, _ = decoder.raw_decode(text[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(candidate, dict):
+            return candidate
+    return None
+
+def parse_json_object(text: str) -> dict[str, Any]:
+    """解析模型返回的 JSON 对象；兼容代码围栏、前后说明文字。"""
     text = text.strip()
     text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.IGNORECASE).strip()
-    data = json.loads(text)
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        data = _first_json_object(text)
+    if data is None:
+        raise ValueError("LLM 返回的内容中没有可解析的 JSON 对象")
     if not isinstance(data, dict):
         raise ValueError("LLM 返回的结构化输入不是 JSON 对象")
     return data
 
+_json_from_text = parse_json_object
+
+
+def _request_payload(policy: ModelPolicy, provider: dict[str, str]) -> dict[str, Any]:
+    """构造请求体；只有确认兼容的 provider 才附加非标思考参数。"""
+    payload: dict[str, Any] = {"model": policy.model, "temperature": policy.temperature}
+    base_url = provider["base_url"].lower()
+    # SiliconFlow 的 DeepSeek-V3.2 支持 enable_thinking/thinking_budget；
+    # reasoning_effort 仅适用于其 V4-Flash，传给 V3.2 会直接返回 400。
+    if "siliconflow.cn" in base_url:
+        payload["enable_thinking"] = policy.thinking != "disabled"
+        payload["thinking_budget"] = {"low": 2048, "high": 4096, "max": 8192}.get(policy.reasoning_effort, 4096)
+    elif "deepseek" in base_url:
+        payload["thinking"] = {"type": policy.thinking}
+        if policy.thinking != "disabled":
+            payload["reasoning_effort"] = policy.reasoning_effort
+    # 其他 provider 只发送标准参数，避免非标 thinking 字段被严格校验的 API 直接 400。
+    return payload
+
+# 瞬时失败（限流、服务端错误、网络抖动）自动重试；客户端参数错误不重试。
+RETRYABLE_HTTP_CODES = {429, 500, 502, 503, 504}
+MAX_LLM_ATTEMPTS = 3
 
 def _chat_completion(policy: ModelPolicy, messages: list[dict[str, str]]) -> str:
     """调用 OpenAI 兼容接口；只使用标准库，避免工作台额外安装 requests。"""
@@ -173,62 +215,68 @@ def _chat_completion(policy: ModelPolicy, messages: list[dict[str, str]]) -> str
     api_key = provider.get("api_key") or os.getenv(provider["api_key_env"], "").strip()
     if not api_key:
         raise ValueError(f"缺少 {provider['api_key_env']}，无法调用 LLM")
-    payload: dict[str, Any] = {"model": policy.model, "temperature": policy.temperature, "messages": messages}
-    # SiliconFlow 的 DeepSeek-V3.2 支持 enable_thinking/thinking_budget；
-    # reasoning_effort 仅适用于其 V4-Flash，传给 V3.2 会直接返回 400。
-    if "siliconflow.cn" in provider["base_url"]:
-        payload["enable_thinking"] = policy.thinking != "disabled"
-        payload["thinking_budget"] = {"low": 2048, "high": 4096, "max": 8192}.get(policy.reasoning_effort, 4096)
-    else:
-        payload["thinking"] = {"type": policy.thinking}
-        if policy.thinking != "disabled":
-            payload["reasoning_effort"] = policy.reasoning_effort
+    payload = _request_payload(policy, provider)
+    payload["messages"] = messages
     request = Request(
         f"{provider['base_url']}/chat/completions",
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         method="POST",
     )
-    started = time.time()
-    record: dict[str, Any] = {
-        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "provider": policy.provider,
-        "model": policy.model,
-        "thinking": policy.thinking,
-        "response_time": 0.0,
-        "success": False,
-    }
-    try:
-        with DIRECT_HTTP.open(request, timeout=policy.timeout_seconds) as response:
-            body = json.loads(response.read().decode("utf-8"))
+    for attempt in range(1, MAX_LLM_ATTEMPTS + 1):
+        if attempt > 1:
+            time.sleep(2 * (attempt - 1))
+        started = time.time()
+        record: dict[str, Any] = {
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "provider": policy.provider,
+            "model": policy.model,
+            "thinking": policy.thinking,
+            "attempt": attempt,
+            "response_time": 0.0,
+            "success": False,
+        }
+        try:
+            with DIRECT_HTTP.open(request, timeout=policy.timeout_seconds) as response:
+                body = json.loads(response.read().decode("utf-8"))
+        except HTTPError as error:
+            detail = error.read().decode("utf-8", errors="replace")[:800]
+            record["response_time"] = round(time.time() - started, 3)
+            record["error"] = f"HTTP {error.code}: {detail}"
+            _append_llm_log(record)
+            if error.code not in RETRYABLE_HTTP_CODES or attempt == MAX_LLM_ATTEMPTS:
+                raise ValueError(f"LLM 接口返回 HTTP {error.code}：{detail}") from error
+            continue
+        except URLError as error:
+            record["response_time"] = round(time.time() - started, 3)
+            record["error"] = str(error.reason)
+            _append_llm_log(record)
+            if attempt == MAX_LLM_ATTEMPTS:
+                raise ValueError(f"无法连接 LLM 接口：{error.reason}") from error
+            continue
+        except Exception as error:
+            # 超时、连接重置、响应不完整等瞬时网络错误：退避后重试。
+            record["response_time"] = round(time.time() - started, 3)
+            record["error"] = str(error)
+            _append_llm_log(record)
+            if attempt == MAX_LLM_ATTEMPTS:
+                raise
+            continue
         record["response_time"] = round(time.time() - started, 3)
         usage = body.get("usage") or {}
         record["prompt_tokens"] = int(usage.get("prompt_tokens") or 0)
         record["completion_tokens"] = int(usage.get("completion_tokens") or 0)
         record["total_tokens"] = int(usage.get("total_tokens") or 0)
-        record["success"] = True
         try:
             content = body["choices"][0]["message"]["content"].strip()
         except (KeyError, IndexError, TypeError) as error:
+            record["error"] = "LLM 接口返回格式异常"
+            _append_llm_log(record)
             raise ValueError("LLM 接口返回格式异常") from error
+        record["success"] = True
         _append_llm_log(record)
         return content
-    except HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")[:800]
-        record["response_time"] = round(time.time() - started, 3)
-        record["error"] = f"HTTP {error.code}: {detail}"
-        _append_llm_log(record)
-        raise ValueError(f"LLM 接口返回 HTTP {error.code}：{detail}") from error
-    except URLError as error:
-        record["response_time"] = round(time.time() - started, 3)
-        record["error"] = str(error.reason)
-        _append_llm_log(record)
-        raise ValueError(f"无法连接 LLM 接口：{error.reason}") from error
-    except Exception as error:
-        record["response_time"] = round(time.time() - started, 3)
-        record["error"] = str(error)
-        _append_llm_log(record)
-        raise
+    raise ValueError("LLM 调用失败：重试次数已用尽")
 
 
 def input_to_fields(*, step_id: str, user_input: Any, input_kind: str, schema_hint: dict[str, Any], project_hint: str) -> dict[str, Any]:
@@ -243,9 +291,8 @@ def generate_markdown(*, step_id: str, fields: dict[str, Any], context: str, out
     """由当前步骤指定的 LLM 生成最终 Markdown 资产。"""
     policy = policy_for(step_id, "generate")
     settings = workspace_settings()
-    prefix = ""
     preset = {"fast":"快速创作：优先推进产出，保持必要的一致性。", "careful":"精细创作：优先核查上下文一致性，明确标出不确定信息。", "standard":"标准流程：平衡创作质量与上下文一致性。"}.get(settings.get("preset"), "标准流程：平衡创作质量与上下文一致性。")
-    system = """你是小说工作台中的步骤生成器。根据用户字段和已确认项目上下文，生成一个最终 Markdown 文件。\n\n规则：\n1. 只输出最终 Markdown，不解释，不使用代码围栏。\n2. 必须严格遵循输出契约。\n3. 用户字段优先；项目上下文只可作为约束和补充依据。\n4. 不得编造与已有事实冲突的设定。\n5. 上下文没有依据时可使用“待补充”或审慎的创作补全。""" + f"\n\n当前执行预设：{preset}" + (f"\n\n工作台全局提示词：\n{prefix}" if prefix else "")
+    system = """你是小说工作台中的步骤生成器。根据用户字段和已确认项目上下文，生成一个最终 Markdown 文件。\n\n规则：\n1. 只输出最终 Markdown，不解释，不使用代码围栏。\n2. 必须严格遵循输出契约。\n3. 用户字段优先；项目上下文只可作为约束和补充依据。\n4. 不得编造与已有事实冲突的设定。\n5. 上下文没有依据时可使用“待补充”或审慎的创作补全。""" + f"\n\n当前执行预设：{preset}"
     custom_prompts = settings.get("scriptPrompts", {})
     if isinstance(custom_prompts, dict) and str(custom_prompts.get(step_id, "")).strip():
         system = str(custom_prompts[step_id]).strip()
@@ -257,9 +304,8 @@ def generate_json(*, step_id: str, fields: dict[str, Any], context: str, json_sc
     """由当前步骤指定的 LLM 生成最终 JSON 资产（实验性：结构化世界观等）。"""
     policy = policy_for(step_id, "generate")
     settings = workspace_settings()
-    prefix = ""
     preset = {"fast":"快速创作：优先推进产出，保持必要的一致性。", "careful":"精细创作：优先核查上下文一致性，明确标出不确定信息。", "standard":"标准流程：平衡创作质量与上下文一致性。"}.get(settings.get("preset"), "标准流程：平衡创作质量与上下文一致性。")
-    system = """你是小说工作台中的步骤生成器。根据用户字段和已确认项目上下文，生成一个最终 JSON 资产。\n\n规则：\n1. 只输出 JSON 对象，不解释，不使用代码围栏。\n2. 必须严格符合给定 JSON Schema 的字段和类型。\n3. 用户字段优先；项目上下文只可作为约束和补充依据。\n4. 不得编造与已有事实冲突的设定。\n5. 上下文没有依据时可使用“待补充”或审慎的创作补全。""" + f"\n\n当前执行预设：{preset}" + (f"\n\n工作台全局提示词：\n{prefix}" if prefix else "")
+    system = """你是小说工作台中的步骤生成器。根据用户字段和已确认项目上下文，生成一个最终 JSON 资产。\n\n规则：\n1. 只输出 JSON 对象，不解释，不使用代码围栏。\n2. 必须严格符合给定 JSON Schema 的字段和类型。\n3. 用户字段优先；项目上下文只可作为约束和补充依据。\n4. 不得编造与已有事实冲突的设定。\n5. 上下文没有依据时可使用“待补充”或审慎的创作补全。""" + f"\n\n当前执行预设：{preset}"
     custom_prompts = settings.get("scriptPrompts", {})
     if isinstance(custom_prompts, dict) and str(custom_prompts.get(step_id, "")).strip():
         system = str(custom_prompts[step_id]).strip()

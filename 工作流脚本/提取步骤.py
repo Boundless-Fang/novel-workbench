@@ -28,5 +28,6 @@ def run(task: str, base: Path, data: dict[str, Any]) -> list[str]:
     source_file = (stage / relative_source) if task in {"style", "positive_vocabulary", "exclusive_vocabulary"} else (stage.parent.parent / "text_style_imitation" / f"{source.stem}_style_imitation" / relative_source)
     output = base / "提取" / filename
     checked_write(base, task, output, read_text(source_file))
+    # 日志保留在项目目录中供排错使用，但不是用户可编辑的提取产物。
     report = base / "提取" / f"{task}.log.md"; report.parent.mkdir(parents=True, exist_ok=True); report.write_text(f"# {task} 执行日志\n\n```text\n{log}\n```\n", encoding="utf-8")
-    return [str(output.relative_to(base)), str(report.relative_to(base))]
+    return [str(output.relative_to(base))]

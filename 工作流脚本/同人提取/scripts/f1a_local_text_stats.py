@@ -4,7 +4,6 @@ import shutil
 import math
 import statistics
 from collections import Counter
-import jieba
 import jieba.posseg as pseg
 
 from core._core_cli_runner import safe_run_app, inject_env, HeadlessBaseTask
@@ -74,7 +73,8 @@ class NovelMetricsAnalyzerApp(HeadlessBaseTask):
             c_stats = WelfordStats()
             punc_counts = Counter()
             pos_counter = Counter()
-            quote_lengths = []
+            quote_count = 0
+            quote_char_total = 0
             
             front, mid, rear, none = 0, 0, 0, 0
             speak_verbs = ['说', '道', '问', '答', '叹', '喊', '吼', '笑']
@@ -120,9 +120,9 @@ class NovelMetricsAnalyzerApp(HeadlessBaseTask):
                 punc_counts.update(c for c in content_chunk if c in PUNCTUATIONS and re.match(r'[，。！？；：“”‘’（）《》、\.\,\?\!\:\;\-\[\]]', c))
 
                 # 3. 对话统计
-                quotes_iter = re.finditer(r'“([^”]*)”', content_chunk)
-                for m in quotes_iter:
-                    quote_lengths.append(len(m.group(1)))
+                for m in re.finditer(r'“([^”]*)”', content_chunk):
+                    quote_count += 1
+                    quote_char_total += len(m.group(1))
                 
                 for p in content_chunk.split('\n'):
                     p = p.strip()
@@ -139,17 +139,12 @@ class NovelMetricsAnalyzerApp(HeadlessBaseTask):
                         if has_verb: mid += 1
                         else: none += 1
 
-                # 4. TTR 统计
-                for w in jieba.cut(content_chunk):
-                    w = w.strip()
-                    if w and w not in PUNCTUATIONS:
-                        total_tokens += 1
-                        unique_words.add(w)
-
-                # 5. 词性统计
+                # 4/5. 单次词性分词同时计算 TTR 与词性分布，避免全文重复分词。
                 for w, flag in pseg.cut(content_chunk):
                     w = w.strip()
                     if not w or w in PUNCTUATIONS: continue
+                    total_tokens += 1
+                    unique_words.add(w)
                     if flag.startswith('n'): pos_counter['名词'] += 1
                     elif flag.startswith('v'): pos_counter['动词'] += 1
                     elif flag.startswith('a'): pos_counter['形容词'] += 1
@@ -182,10 +177,10 @@ class NovelMetricsAnalyzerApp(HeadlessBaseTask):
                 report.append("未检测到有效标点。")
             report.append("")
 
-            total_quotes = len(quote_lengths)
+            total_quotes = quote_count
             report.append("【三、 对话结构偏好分析】")
             if total_quotes > 0:
-                avg_quote_len = sum(quote_lengths) / total_quotes
+                avg_quote_len = quote_char_total / total_quotes
                 total_tags = front + mid + rear + none or 1
                 report.append(f"双引号频率：共 {total_quotes} 次")
                 report.append(f"引号内平均字数：{avg_quote_len:.2f} 字")

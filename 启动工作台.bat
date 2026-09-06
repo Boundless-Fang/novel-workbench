@@ -3,30 +3,30 @@ setlocal
 cd /d "%~dp0"
 
 echo ============================================
-echo   å°è¯´å·¥ä½œå°å¯åŠ¨å™¨
+echo   Ð¡Ëµ¹¤×÷Ì¨Æô¶¯Æ÷
 echo ============================================
 echo.
 
 if not exist "web\server.mjs" (
-  echo [é”™è¯¯] æ‰¾ä¸åˆ° web\server.mjs
-  echo è¯·ç¡®è®¤æœ¬æ–‡ä»¶ä½äºŽé¡¹ç›®æ ¹ç›®å½•ï¼šå°è¯´ç”Ÿæˆå…¨æµç¨‹\
+  echo [´íÎó] ÕÒ²»µ½ web\server.mjs
+  echo ÇëÈ·ÈÏ±¾ÎÄ¼þÎ»ÓÚÏîÄ¿¸ùÄ¿Â¼£ºÐ¡ËµÉú³ÉÈ«Á÷³Ì\
   pause
   exit /b 1
 )
 
 where node >nul 2>nul
 if errorlevel 1 (
-  echo [é”™è¯¯] æœªæ‰¾åˆ° Node.jsï¼Œè¯·å…ˆå®‰è£… Node.js 18 æˆ–æ›´é«˜ç‰ˆæœ¬
+  echo [´íÎó] Î´ÕÒµ½ Node.js£¬ÇëÏÈ°²×° Node.js 18 »ò¸ü¸ß°æ±¾
   pause
   exit /b 1
 )
 
-echo æ­£åœ¨å¯åŠ¨æœ¬åœ°æœåŠ¡ï¼šhttp://127.0.0.1:4173
-echo å…³é—­å¼¹å‡ºçš„é»‘è‰²çª—å£å³å¯åœæ­¢æœåŠ¡ã€‚
+echo ÕýÔÚÆô¶¯±¾µØ·þÎñ£ºhttp://127.0.0.1:4173
+echo ¹Ø±Õµ¯³öµÄºÚÉ«´°¿Ú¼´¿ÉÍ£Ö¹·þÎñ¡£
 echo.
 
 pushd "%~dp0web"
-start "å°è¯´å·¥ä½œå°" cmd /k "node server.mjs"
+start "Ð¡Ëµ¹¤×÷Ì¨" cmd /k "node server.mjs"
 popd
 
 timeout /t 2 /nobreak >nul

@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 from LLM配置 import generate_markdown, policy_for
-from 共享 import chapter_asset, checked_write, context, fail, read_text, run_reference, safe_name, stage_project, worldview_path, worldview_text
+from 共享 import asset_cards, chapter_asset, chapter_prose, checked_write, context, fail, read_text, run_reference, safe_name, stage_project, worldview_path, worldview_text
 from 步骤定义 import CONFIG_LABELS, CONFIG_MULTIPLE, validate_config_fields
 import 结构化JSON
 
@@ -19,17 +19,27 @@ def _generate(base: Path, task: str, data: dict[str, Any], path: Path, contract:
     checked_write(base, task, path, generate_markdown(step_id=task, fields=data, context=context(base, sources), output_contract=contract)); return [str(path.relative_to(base))]
 def _json_generate(base: Path, task: str, data: dict[str, Any], paths: list[Path]) -> list[str]:
     return 结构化JSON.run(task, base, data, context(base, paths))
+def _volume_plots(base: Path) -> list[Path]:
+    volume_dir = base / "剧情" / "剧情卷"
+    return sorted(volume_dir.glob("*.md")) if volume_dir.exists() else []
 def run(task: str, base: Path, data: dict[str, Any]) -> list[str]:
     chapter = _chapter(data)
     if task == "compile_anchor":
-        return _json_generate(base, task, data, [worldview_path(base), base / "剧情" / "剧情书.md"])
+        cards, relations = asset_cards(base)
+        return _json_generate(base, task, data, [base / "知识库" / "小说简介.md", worldview_path(base), *cards, *relations, base / "剧情" / "剧情书.md", *_volume_plots(base), base / "知识库" / "信息账本.md"])
     if task == "compile_config":
-        values = validate_config_fields(data)
+        values, dropped = validate_config_fields(data)
         # 与右侧模板一致：十个分组全部存在，未使用的分组留空。
         text = f"# {chapter}配置\n\n" + "\n\n".join(f"## {label}\n" + ("、".join(values[key]) if key in CONFIG_MULTIPLE else str(values[key])) for key, label in CONFIG_LABELS.items())
-        checked_write(base, task, chapter_asset(base, chapter, "配置.md"), text); return [str(chapter_asset(base, chapter, "配置.md").relative_to(base))]
+        if dropped:
+            # 输入里无法归一到受控选项的条目：丢弃但显式记录，避免静默丢失用户意图。
+            text += "\n\n## 未识别选项\n" + "\n".join(f"- {item}" for item in dropped)
+        path = chapter_asset(base, chapter, "配置.md")
+        checked_write(base, task, path, text)
+        return [str(path.relative_to(base))]
     if task == "compile_dialogue":
-        return _json_generate(base, task, data, [base / "知识库" / "语言风格.md", base / "词汇库" / "对话词库.md", chapter_asset(base, chapter, "强制设定锚点.md")])
+        cards, relations = asset_cards(base)
+        return _json_generate(base, task, data, [base / "知识库" / "语言风格.md", base / "词汇库" / "对话词库.md", chapter_asset(base, chapter, "强制设定锚点.md"), *cards, *relations])
     if task == "compile_snapshot":
         required = [worldview_path(base), chapter_asset(base, chapter, "强制设定锚点.md"), chapter_asset(base, chapter, "配置.md"), chapter_asset(base, chapter, "台词.md")]
         missing = [str(p.relative_to(base)) for p in required if not p.exists()]
@@ -44,9 +54,9 @@ def run(task: str, base: Path, data: dict[str, Any]) -> list[str]:
     if task == "generate_prose":
         snapshot = chapter_asset(base, chapter, "最终提示词快照.md")
         if not snapshot.exists(): fail("生成正文前必须存在最终提示词快照")
-        return _generate(base, task, data, base / "正文" / f"{chapter}.txt", "只输出完整正文，不要标题、解释或代码围栏。输入仅为最终提示词快照。人物心理必须写为 [心理内容]；人物对白必须使用中文引号“”；每次场景切换必须单独使用一行 --- 分隔。", [snapshot])
+        return _generate(base, task, data, chapter_prose(base, chapter), "只输出完整正文，不要标题、解释或代码围栏。输入仅为最终提示词快照。人物心理必须写为 [心理内容]；人物对白必须使用中文引号“”；每次场景切换必须单独使用一行 --- 分隔。", [snapshot])
     if task == "rewrite_prose":
-        original = base / "正文" / f"{chapter}.txt"
+        original = chapter_prose(base, chapter)
         if not original.exists(): fail("改写前必须存在正文")
         return _generate(base, task, data, base / "草稿" / f"{chapter}-改写预览.txt", "只输出改写后的完整正文，不要标题、解释或代码围栏；保留本章既定事实。人物心理必须写为 [心理内容]；人物对白必须使用中文引号“”；每次场景切换必须单独使用一行 --- 分隔。", [original, chapter_asset(base, chapter, "强制设定锚点.md"), base / "知识库" / "语言风格.md"])
     fail("章节步骤不支持：" + task)

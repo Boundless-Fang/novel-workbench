@@ -6,6 +6,7 @@ import { basename, extname, join, normalize, relative, resolve } from 'node:path
 import { tmpdir } from 'node:os';
 
 const webRoot = process.cwd();
+const port = Number(process.env.NOVEL_PORT) || 4173;
 const workspaceRoot = resolve(webRoot, '..');
 const projectsRoot = join(workspaceRoot, '小说项目');
 const scoringRoot = join(webRoot, '..', '工作流脚本', '文风评分');
@@ -18,10 +19,8 @@ const workflowPython = [
   process.env.NOVEL_PYTHON,
   process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'Programs', 'Python', 'Python312', 'python.exe') : '',
   process.env.USERPROFILE ? join(process.env.USERPROFILE, 'AppData', 'Local', 'Programs', 'Python', 'Python312', 'python.exe') : '',
-  'C:\\Users\\方文杰\\AppData\\Local\\Programs\\Python\\Python312\\python.exe',
   process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'Programs', 'Python', 'Python311', 'python.exe') : '',
   process.env.USERPROFILE ? join(process.env.USERPROFILE, 'AppData', 'Local', 'Programs', 'Python', 'Python311', 'python.exe') : '',
-  'C:\\Users\\方文杰\\AppData\\Local\\Programs\\Python\\Python311\\python.exe',
 ].find(candidate => candidate && existsSync(candidate));
 const settingsFile = join(webRoot, '..', '工作流脚本', '工作台设置.json');
 const defaultPromptsRoot = join(webRoot, '..', '工作流脚本', '默认提示词');
@@ -29,6 +28,8 @@ const slopRulesFile = join(scoringRoot, 'src', 'services', 'checker', 'slop-rule
 const defaultAssetIds = new Set(['language_style', 'person_vocab', 'dialogue_vocab', 'common_vocab', 'forbidden_vocab']);
 const defaultAssetFiles = { language_style:['语言风格.txt', '知识库/语言风格.md'], person_vocab:['人物词库.md', '词汇库/人物词库.md'], dialogue_vocab:['对话词库.md', '词汇库/对话词库.md'], common_vocab:['通用词库.md', '词汇库/通用词库.md'] };
 const workflowTasks = new Set(['compile_intro', 'compile_character_roster', 'generate_characters_batch', 'compile_relation_roster', 'generate_relations_batch', 'compile_anchor', 'compile_config', 'compile_dialogue', 'compile_relation', 'compile_style', 'compile_plot', 'compile_volume', 'compile_ledger', 'generate_worldview', 'generate_worldview_json', 'generate_character', 'compile_snapshot', 'generate_prose', 'rewrite_prose', 'validate', 'text_stats', 'word_frequency', 'style', 'positive_vocabulary', 'exclusive_vocabulary']);
+// 纯本地拼装、不调用 LLM 的任务：无需配置 API 即可执行。
+const localOnlyTasks = new Set(['text_stats', 'word_frequency', 'compile_config', 'compile_snapshot']);
 const workflowRuns = new Map();
 const runFile = promisify(execFile);
 const types = { '.css':'text/css; charset=utf-8', '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8' };
@@ -56,8 +57,36 @@ function workflowEnvironment(settings) { const env={...process.env, PYTHONUTF8:'
 function assertWorkflowModel(task) { const settings=cleanSettings(readSettings()), override=settings.scriptModels[task] || {}, providerName=override.provider || settings.provider, provider=settings.providers.find(item=>item.name===providerName), model=override.model || settings.model || provider?.model; if (!provider?.apiKey || !provider?.apiUrl || !model) throw new Error('尚未配置可用 API：请在模型设置中填写 API Key。'); }
 function siliconFlowModels(models) { const preferred=['deepseek-ai/DeepSeek-V3.2','Pro/deepseek-ai/DeepSeek-V3.2','Qwen/Qwen3.5-397B-A17B','Qwen/Qwen3.5-122B-A10B','Kimi-K2.6','zai-org/GLM-5.1']; const available=new Set(models); return preferred.filter(model=>available.has(model)); }
 
-createServer(async (request, response) => {
+// 仅接受本机来源：Host 必须是回环地址（防 DNS rebinding），带 Origin 时也必须是本地页面
+// （恶意网页的 DELETE 等简单请求不会触发 CORS 预检，必须在服务端拒绝）。
+// Origin 放行任意本地端口，兼容工作台页面从其他本地服务预览打开的场景。
+const localHostPattern = /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i;
+function rejectForeignSource(request, response) {
+  const host = String(request.headers.host || '');
+  const origin = String(request.headers.origin || '');
+  const originLocal = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?/i.test(origin);
+  if (!localHostPattern.test(host) || (origin && origin !== 'null' && !originLocal)) {
+    response.writeHead(403, { 'Content-Type':'text/plain; charset=utf-8' }); response.end('Forbidden'); return true;
+  }
+  return false;
+}
+
+// Windows 命令行上限约 32K 字符：超长输入写入临时文件，由 Python 端用 --*_file 读取。
+const argvSafeLimit = 6000;
+function spillArg(tmpDir, value) {
+  if (typeof value !== 'string' || value.length <= argvSafeLimit) return null;
+  const file = join(tmpDir, `payload-${process.hrtime.bigint().toString(36)}.txt`);
+  writeFileSync(file, value, 'utf8');
+  return file;
+}
+function spillArgs(tmpDir, value) {
+  const file = spillArg(tmpDir, value);
+  return file ? ['_file', file] : ['', value];
+}
+
+const server = createServer(async (request, response) => {
   const url = new URL(request.url, 'http://127.0.0.1');
+  if (rejectForeignSource(request, response)) return;
   if (request.method === 'OPTIONS') { response.writeHead(204); response.end(); return; }
   try {
     if (url.pathname === '/api/projects' && request.method === 'GET') return send(response, 200, { projects:projectNames() });
@@ -77,7 +106,7 @@ createServer(async (request, response) => {
     if (url.pathname === '/api/file' && request.method === 'DELETE') { const project = url.searchParams.get('project'), path = url.searchParams.get('path'), file = projectPath(project, path); if (!existsSync(file) || !statSync(file).isFile()) return send(response, 404, { error:'文件不存在' }); rmSync(file); return send(response, 200, { deleted:safePath(path) }); }
     if (url.pathname === '/api/chapter' && request.method === 'DELETE') { const project=url.searchParams.get('project'), prosePath=url.searchParams.get('prosePath'), chapter=chapterFiles(project, prosePath); if(!existsSync(chapter.proseFile) || !statSync(chapter.proseFile).isFile()) return send(response,404,{error:'章节正文不存在'}); rmSync(chapter.proseFile); const removed=[]; for(const dir of chapter.promptDirs) if(existsSync(dir) && statSync(dir).isDirectory()){rmSync(dir,{recursive:true,force:true});removed.push(relative(projectPath(project),dir).replaceAll('\\','/'));} return send(response,200,{deleted:chapter.path,promptDirs:removed}); }
     if (url.pathname === '/api/chapter' && request.method === 'PATCH') { const body=await readBody(request), chapter=chapterFiles(body.project, body.prosePath), next=safeSegment(String(body.name||'').replace(/\.txt$/i,''),'章节名称'), nextPath=`${chapter.path.slice(0,chapter.path.lastIndexOf('/')+1)}${next}.txt`, nextFile=projectPath(body.project,nextPath); if(!existsSync(chapter.proseFile) || !statSync(chapter.proseFile).isFile()) return send(response,404,{error:'章节正文不存在'}); if(existsSync(nextFile)) return send(response,409,{error:'同名章节已存在'}); renameSync(chapter.proseFile,nextFile); const moved=[]; for(const dir of chapter.promptDirs){if(!existsSync(dir)||!statSync(dir).isDirectory())continue;const target=resolve(dir,'..',next);if(existsSync(target)) throw new Error('同名章节提示词目录已存在');renameSync(dir,target);moved.push(relative(projectPath(body.project),target).replaceAll('\\','/'));} return send(response,200,{path:nextPath,promptDirs:moved}); }
-    if (url.pathname === '/api/upload' && request.method === 'POST') { const body = await readBody(request); const name = safeSegment(String(body.name || ''), '文件名'), destination = projectPath(body.project, `原著/${name}`); writeFileSync(destination, decodeUpload(body.data)); return send(response, 201, { path:`原著/${name}` }); }
+    if (url.pathname === '/api/upload' && request.method === 'POST') { const body = await readBody(request); const name = safeSegment(String(body.name || ''), '文件名'); if (!['.txt','.md'].includes(extname(name).toLowerCase())) throw new Error('原著仅支持 .txt 或 .md 文件'); const destination = projectPath(body.project, `原著/${name}`); writeFileSync(destination, decodeUpload(body.data)); return send(response, 201, { path:`原著/${name}` }); }
     if (url.pathname === '/api/migrate/first-volume' && request.method === 'POST') { const body = await readBody(request), base = projectPath(body.project), volume = safeSegment(String(body.volume || '第 1 卷'), '卷名'), prose = join(base, '正文'), prompts = join(base, '提示词'), proseVolume = join(prose, volume), promptVolume = join(prompts, volume); mkdirSync(proseVolume, { recursive:true }); mkdirSync(promptVolume, { recursive:true }); const moved=[]; for(const entry of readdirSync(prose,{withFileTypes:true}).filter(entry=>entry.isFile()&&extname(entry.name).toLowerCase()==='.txt')){ renameSync(join(prose,entry.name),join(proseVolume,entry.name)); moved.push(`正文/${volume}/${entry.name}`); } for(const entry of readdirSync(prompts,{withFileTypes:true}).filter(entry=>entry.isDirectory()&&entry.name!==volume)){ renameSync(join(prompts,entry.name),join(promptVolume,entry.name)); moved.push(`提示词/${volume}/${entry.name}`); } return send(response,200,{volume,moved}); }
     if (url.pathname === '/api/score' && request.method === 'POST') { const body = await readBody(request), requested = safePath(body.file), prosePath = requested.includes('/') ? requested : `正文/${safeSegment(requested, '正文文件')}`, proseFile = projectPath(body.project, prosePath), lexiconFile = projectPath(body.project, '词汇库/禁用词库.md'); if (!prosePath.startsWith('正文/')) throw new Error('评分文件必须位于正文目录'); if (!existsSync(projectScoreScript)) throw new Error('未找到项目评分器'); if (!existsSync(proseFile)) throw new Error('当前章节正文不存在'); const { stdout, stderr } = await runFile(process.execPath, ['--import', 'tsx', projectScoreScript, proseFile, lexiconFile], { cwd:scoringRoot, timeout:60_000, windowsHide:true }); return send(response, 200, { report:stdout || stderr || '评分脚本没有返回结果' }); }
     if (url.pathname === '/api/workflow/cancel' && request.method === 'POST') { const runId=String((await readBody(request)).runId || ''); const controller=workflowRuns.get(runId); if(!controller) return send(response,404,{error:'没有正在运行的任务'}); controller.abort(); return send(response,202,{cancelled:true}); }
@@ -87,65 +116,80 @@ createServer(async (request, response) => {
       const project = safeSegment(body.project, '项目名');
       if (!workflowTasks.has(task)) throw new Error('不支持的流程任务');
       if (!existsSync(workflowScript)) throw new Error('未找到标准模式流程脚本');
-      assertWorkflowModel(task);
+      if (!localOnlyTasks.has(task)) assertWorkflowModel(task);
       const inputMode = body.inputMode === 'natural' ? 'natural' : 'structured';
       const inputComplete = body.inputComplete === true;
       const naturalInput = typeof body.naturalInput === 'string' ? body.naturalInput.trim() : '';
       const input = body.input && typeof body.input === 'object' && !Array.isArray(body.input) ? body.input : null;
       if (inputMode === 'structured' && !input) throw new Error('结构化输入必须是 JSON 对象');
       if (inputMode === 'natural' && !naturalInput) throw new Error('自然语言输入不能为空');
-      const args = [...(workflowPython ? [] : ['-3']), workflowScript, '--task', task, '--project', project, '--input_mode', inputMode];
-      if (inputMode === 'natural') args.push('--natural_input', naturalInput); else { args.push('--input', JSON.stringify(input)); if (inputComplete) args.push('--input_complete'); }
-      const runId=/^[a-zA-Z0-9-]{8,80}$/.test(String(body.runId||'')) ? String(body.runId) : null;
-      if(runId && workflowRuns.has(runId)) throw new Error('该任务正在运行');
-      const controller=new AbortController(); if(runId)workflowRuns.set(runId,controller);
-      let stdout, stderr;
-      try { ({ stdout, stderr } = await runFile(workflowPython || 'py', args, { cwd:workspaceRoot, timeout:600_000, windowsHide:true, maxBuffer:10_000_000, env:workflowEnvironment(cleanSettings(readSettings())), signal:controller.signal })); }
-      catch (error) {
-        if(controller.signal.aborted) throw new Error('任务已终止');
-        const rawDetail=String(error?.stderr || error?.stdout || error?.message || '脚本没有返回错误信息').trim();
-        const detailLines=rawDetail.split(/\r?\n/).filter(Boolean);
-        let detail=rawDetail.slice(0, 12_000), usage=null;
-        try {
-          const parsed=JSON.parse(detailLines.at(-1) || '');
-          if (parsed && parsed.ok === false) {
-            detail=String(parsed.error || detail).slice(0, 12_000);
-            usage=parsed.usage || null;
-          }
-        } catch (_) {}
-        const workflowError=new Error(detail);
-        if (usage) workflowError.usage=usage;
-        throw workflowError;
-      }
-      finally { if(runId)workflowRuns.delete(runId); }
-      let result;
-      try { result = JSON.parse(stdout.trim().split(/\r?\n/).at(-1)); } catch { result = { ok:true, outputs:[], log:stdout || stderr }; }
-      return send(response, 200, { task, ...result, log:stdout || stderr });
+      const tmpDir = mkdtempSync(join(tmpdir(), 'novel-workbench-'));
+      try {
+        const args = [...(workflowPython ? [] : ['-3']), workflowScript, '--task', task, '--project', project, '--input_mode', inputMode];
+        if (inputMode === 'natural') { const [suffix, value] = spillArgs(tmpDir, naturalInput); args.push(`--natural_input${suffix}`, value); }
+        else { const [suffix, value] = spillArgs(tmpDir, JSON.stringify(input)); args.push(`--input${suffix}`, value); if (inputComplete) args.push('--input_complete'); }
+        const runId=/^[a-zA-Z0-9-]{8,80}$/.test(String(body.runId||'')) ? String(body.runId) : null;
+        if(runId && workflowRuns.has(runId)) throw new Error('该任务正在运行');
+        const controller=new AbortController(); if(runId)workflowRuns.set(runId,controller);
+        let stdout, stderr;
+        try { ({ stdout, stderr } = await runFile(workflowPython || 'py', args, { cwd:workspaceRoot, timeout:1_800_000, windowsHide:true, maxBuffer:10_000_000, env:workflowEnvironment(cleanSettings(readSettings())), signal:controller.signal })); }
+        catch (error) {
+          if(controller.signal.aborted) throw new Error('任务已终止');
+          const rawDetail=String(error?.stderr || error?.stdout || error?.message || '脚本没有返回错误信息').trim();
+          const detailLines=rawDetail.split(/\r?\n/).filter(Boolean);
+          let detail=rawDetail.slice(0, 12_000), usage=null;
+          try {
+            const parsed=JSON.parse(detailLines.at(-1) || '');
+            if (parsed && parsed.ok === false) {
+              detail=String(parsed.error || detail).slice(0, 12_000);
+              usage=parsed.usage || null;
+            }
+          } catch (_) {}
+          const workflowError=new Error(detail);
+          if (usage) workflowError.usage=usage;
+          throw workflowError;
+        }
+        finally { if(runId)workflowRuns.delete(runId); }
+        let result;
+        try { result = JSON.parse(stdout.trim().split(/\r?\n/).at(-1)); } catch { throw new Error(`流程脚本没有返回有效的结果 JSON，可能执行异常中止：\n${(stdout || stderr || '').trim().slice(-2000) || '（无输出）'}`); }
+        return send(response, 200, { task, ...result, log:stdout || stderr });
+      } finally { rmSync(tmpDir, { recursive:true, force:true }); }
     }
     if (url.pathname === '/api/chapter-brief/assess' && request.method === 'POST') {
       const body=await readBody(request), project=safeSegment(body.project, '项目名'), chapter=String(body.chapter || '').trim(), content=String(body.content || '').trim();
       if (!chapter || !content) throw new Error('请输入本章信息');
       if (!existsSync(chapterBriefScript)) throw new Error('未找到章节信息判别脚本');
       assertWorkflowModel('compile_anchor');
+      const tmpDir = mkdtempSync(join(tmpdir(), 'novel-brief-'));
       let stdout, stderr;
-      try { ({stdout,stderr}=await runFile(workflowPython || 'py', [...(workflowPython ? [] : ['-3']), chapterBriefScript, '--project', project, '--chapter', chapter, '--content', content], {cwd:workspaceRoot, timeout:180_000, windowsHide:true, maxBuffer:2_000_000, env:workflowEnvironment(cleanSettings(readSettings()))})); }
-      catch (error) { const detail=String(error?.stderr || error?.stdout || error?.message || '判别脚本没有返回错误信息').trim().slice(0, 12_000); throw new Error(`章节信息判别失败：${detail}`); }
-      try { return send(response,200,JSON.parse(stdout.trim().split(/\r?\n/).at(-1))); }
-      catch { throw new Error('章节信息判别返回格式错误'); }
+      try {
+        const [suffix, value] = spillArgs(tmpDir, content);
+        try { ({stdout,stderr}=await runFile(workflowPython || 'py', [...(workflowPython ? [] : ['-3']), chapterBriefScript, '--project', project, '--chapter', chapter, `--content${suffix}`, value], {cwd:workspaceRoot, timeout:180_000, windowsHide:true, maxBuffer:2_000_000, env:workflowEnvironment(cleanSettings(readSettings()))})); }
+        catch (error) { const detail=String(error?.stderr || error?.stdout || error?.message || '判别脚本没有返回错误信息').trim().slice(0, 12_000); throw new Error(`章节信息判别失败：${detail}`); }
+        try { return send(response,200,JSON.parse(stdout.trim().split(/\r?\n/).at(-1))); }
+        catch { throw new Error('章节信息判别返回格式错误'); }
+      } finally { rmSync(tmpDir, { recursive:true, force:true }); }
     }
     if (url.pathname === '/api/project-brief/assess' && request.method === 'POST') {
       const body=await readBody(request), project=safeSegment(body.project, '项目名'), content=String(body.content || '').trim();
       if (!content) throw new Error('请输入小说相关信息');
       if (!existsSync(projectBriefScript)) throw new Error('未找到小说简介判别脚本');
       assertWorkflowModel('compile_intro');
+      const tmpDir = mkdtempSync(join(tmpdir(), 'novel-brief-'));
       let stdout, stderr;
-      try { ({stdout,stderr}=await runFile(workflowPython || 'py', [...(workflowPython ? [] : ['-3']), projectBriefScript, '--project', project, '--content', content], {cwd:workspaceRoot, timeout:180_000, windowsHide:true, maxBuffer:2_000_000, env:workflowEnvironment(cleanSettings(readSettings()))})); }
-      catch (error) { const detail=String(error?.stderr || error?.stdout || error?.message || '简介判别脚本没有返回错误信息').trim().slice(0, 12_000); throw new Error(`小说简介判别失败：${detail}`); }
-      try { return send(response,200,JSON.parse(stdout.trim().split(/\r?\n/).at(-1))); }
-      catch { throw new Error('小说简介判别返回格式错误'); }
+      try {
+        const [suffix, value] = spillArgs(tmpDir, content);
+        try { ({stdout,stderr}=await runFile(workflowPython || 'py', [...(workflowPython ? [] : ['-3']), projectBriefScript, '--project', project, `--content${suffix}`, value], {cwd:workspaceRoot, timeout:180_000, windowsHide:true, maxBuffer:2_000_000, env:workflowEnvironment(cleanSettings(readSettings()))})); }
+        catch (error) { const detail=String(error?.stderr || error?.stdout || error?.message || '简介判别脚本没有返回错误信息').trim().slice(0, 12_000); throw new Error(`小说简介判别失败：${detail}`); }
+        try { return send(response,200,JSON.parse(stdout.trim().split(/\r?\n/).at(-1))); }
+        catch { throw new Error('小说简介判别返回格式错误'); }
+      } finally { rmSync(tmpDir, { recursive:true, force:true }); }
     }
   } catch (error) { const body={ error:error.message || '请求失败' }; if (error.usage) body.usage=error.usage; return send(response, 400, body); }
-  const requestPath = url.pathname === '/' ? '/index.html' : url.pathname, filePath = normalize(join(webRoot, requestPath));
-  if (!filePath.startsWith(webRoot) || !existsSync(filePath) || !statSync(filePath).isFile()) { response.writeHead(404); response.end('Not found'); return; }
-  response.writeHead(200, { 'Content-Type':types[extname(filePath)] || 'application/octet-stream', 'Cache-Control':'no-store, max-age=0' }); createReadStream(filePath).pipe(response);
-}).listen(4173, '127.0.0.1', () => console.log('http://127.0.0.1:4173'));
+  const requestPath = url.pathname === '/' ? '/index.html' : url.pathname, filePath = normalize(join(webRoot, requestPath)), relativePath = relative(webRoot, filePath), contentType = types[extname(filePath)];
+  // 只对外提供已知静态类型（css/html/js）；拒绝 .mjs 等服务端源码与其余任意文件。
+  if (!contentType || !relativePath || relativePath.startsWith('..') || !existsSync(filePath) || !statSync(filePath).isFile()) { response.writeHead(404); response.end('Not found'); return; }
+  response.writeHead(200, { 'Content-Type':contentType, 'Cache-Control':'no-store, max-age=0' }); createReadStream(filePath).pipe(response);
+});
+server.on('error', error => { if (error?.code === 'EADDRINUSE') { console.error(`端口 ${port} 已被占用：可能已有一个工作台正在运行（直接打开 http://127.0.0.1:${port} 即可），或请关闭占用该端口的程序后重试。`); process.exit(1); } throw error; });
+server.listen(port, '127.0.0.1', () => console.log(`http://127.0.0.1:${port}`));

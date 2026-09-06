@@ -118,3 +118,17 @@ body[data-theme="dark"] .document-preview,body[data-theme="dark"] .script-prompt
 .usage-line { margin-top:7px; padding:4px 7px; border-radius:4px; color:var(--muted); background:var(--soft); font-size:11px; line-height:1.4; }
 #clearGenerationTarget { margin-left:5px; padding:0 5px; border:0; border-radius:50%; color:var(--muted); background:transparent; font-size:13px; line-height:1.4; cursor:pointer; }
 #clearGenerationTarget:hover { color:var(--ink); background:var(--soft); }
+
+/* 对话中的完成卡片与模型配置引导卡片。 */
+.completion > div:last-child { min-width:280px; }
+.api-setup-prompt > div:last-child { background:#f5f7fd; border:1px solid #ccd6ee; }
+.api-setup-prompt .generated-file { justify-content:center; }
+body[data-theme="dark"] .api-setup-prompt > div:last-child { background:#202126; border-color:#3a4560; }
+
+/* 同人项目：原著提取步骤显示在标题行 ••• 右侧，不占用第二行流程进度。 */
+.fan-extract-chips { display:flex; flex:1 1 auto; min-width:0; gap:3px; align-items:center; overflow-x:auto; scrollbar-width:thin; padding-bottom:2px; }
+.fan-extract-chips.hidden { display:none; }
+.fan-extract-chips span { padding:3px 6px; border:1px solid var(--line); border-radius:3px; color:var(--muted); background:var(--white); font-size:11px; line-height:1.2; white-space:nowrap; }
+.fan-extract-chips span.done { color:var(--ink); border-color:#c9c9c2; background:#e6e6e0; }
+.title-row { flex-wrap:wrap; row-gap:3px; }
+.chat-title { max-width:100%; }

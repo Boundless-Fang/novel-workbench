@@ -119,9 +119,14 @@ def _fuzzy_config_match(text: str, allowed: tuple[str, ...]) -> str | None:
             return opt
     return None
 
-def validate_config_fields(data: dict[str, Any]) -> dict[str, list[str] | str]:
-    """验证并规范化配置。只允许右侧结构化模板所列的选项；对同义/组合写法做容错归一。"""
+def validate_config_fields(data: dict[str, Any]) -> tuple[dict[str, list[str] | str], list[str]]:
+    """验证并规范化配置。只允许右侧结构化模板所列的选项；对同义/组合写法做容错归一。
+
+    返回 (规范化配置, 未识别选项列表)：无法归一的选项被丢弃而不是让整个步骤失败，
+    仅当所有分组都识别不出任何有效选项时才抛错。
+    """
     normalized: dict[str, list[str] | str] = {}
+    invalid: list[str] = []
     for key, allowed in CONFIG_OPTIONS.items():
         value = data.get(key, []) if key in CONFIG_MULTIPLE else data.get(key, "")
         if value in (None, "", []):
@@ -139,12 +144,16 @@ def validate_config_fields(data: dict[str, Any]) -> dict[str, list[str] | str]:
             if not isinstance(item, str):
                 continue
             hit = _fuzzy_config_match(item, allowed)
-            if hit is not None and hit not in matched:
+            if hit is None:
+                invalid.append(f"{CONFIG_LABELS.get(key, key)}={item}")
+            elif hit not in matched:
                 matched.append(hit)
         if key not in CONFIG_MULTIPLE:
             normalized[key] = matched[0] if matched else ""
         else:
             normalized[key] = matched
     if not any(normalized.values()):
+        if invalid:
+            raise ValueError("配置未能识别任何有效选项（不识别：" + "、".join(invalid) + "）")
         raise ValueError("配置至少需要选择一个项目")
-    return normalized
+    return normalized, invalid
