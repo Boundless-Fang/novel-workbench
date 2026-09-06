@@ -22,7 +22,7 @@ TASK_JSON_SCHEMAS: dict[str, dict[str, Any]] = {
     "compile_character_roster": {
         "characters": [
             {
-                "name": "角色名；若用户未提供名字，必须根据身份/描述自动取名；取名避免俗套，少用月/清/雪/紫/璃等常见字",
+                "name": "角色名；同人项目只能使用专属词库中已出现的角色名，词库与上下文中都没有的名字不得编造；原创项目若用户未提供名字，才可根据身份/描述自动取名，取名避免俗套，少用月/清/雪/紫/璃等常见字",
                 "brief": "角色简介：身份、性格、目标等",
                 "relations": [
                     {"target": "关联角色名", "relationship": "关系描述（如夫妻、交易同盟、敌对）"}
@@ -317,5 +317,6 @@ def run_engine(task: str, base: Path, data: dict[str, Any]) -> list[str]:
         base / "知识库" / "世界观.md",
         base / "知识库" / "信息账本.md",
         base / "剧情" / "剧情书.md",
+        base / "提取" / "专属词库.md",
     ])
     return run(task, base, data, ctx)
